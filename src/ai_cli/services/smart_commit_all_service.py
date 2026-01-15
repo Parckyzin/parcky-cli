@@ -64,14 +64,11 @@ class SmartCommitAllService:
         Uses AI to determine which files should be committed together.
         """
         if len(files) <= 1:
-            # Single file or empty - no need to analyze
             return [FileGroup(files=files, folder=folder)]
 
-        # Get the diff for all files to analyze correlation
         file_paths = [f.path for f in files]
         diff = self.git_repo.get_diff_for_files(file_paths)
 
-        # Use AI to determine file groupings
         prompt = f"""
 Analyze these changed files in folder '{folder}' and determine which files should be committed together.
 Files that are related (e.g., a module and its tests, related refactoring, feature implementation across files)
