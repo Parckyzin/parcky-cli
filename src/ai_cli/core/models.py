@@ -150,4 +150,3 @@ class FileGroup:
     def file_count(self) -> int:
         """Get number of files in this group."""
         return len(self.files)
-
