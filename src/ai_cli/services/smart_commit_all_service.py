@@ -198,13 +198,10 @@ Rules:
                 commits=[],
             )
 
-        # Unstage any currently staged files to start fresh
         self.git_repo.unstage_all()
 
-        # Group by folder
         folder_groups = self.group_files_by_folder(changes)
 
-        # Analyze correlation within each folder and create final groups
         all_groups: list[FileGroup] = []
         for folder, files in folder_groups.items():
             correlated_groups = self.analyze_file_correlation(files, folder)
