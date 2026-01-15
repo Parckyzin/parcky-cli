@@ -219,6 +219,141 @@ def version():
 
 
 @app.command()
+def setup(
+    api_key: str = typer.Option(
+        None,
+        "--api-key",
+        "-k",
+        help="Set the GEMINI_API_KEY directly (skips interactive prompt)",
+    ),
+):
+    """
+    ⚙️ Configure ai-cli with your API key.
+
+    This command helps you set up ai-cli by configuring your GEMINI_API_KEY
+    in the global config (~/.config/ai-cli/.env).
+
+    Examples:
+        ai-cli setup                          # Interactive setup
+        ai-cli setup --api-key YOUR_KEY       # Set API key directly
+    """
+    from pathlib import Path
+
+    global_path = Path.home() / ".config" / "ai-cli" / ".env"
+    global_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def get_current_key() -> str:
+        if not global_path.exists():
+            return ""
+        try:
+            for line in global_path.read_text().split("\n"):
+                if line.startswith("GEMINI_API_KEY="):
+                    return line.split("=", 1)[1].strip()
+        except Exception:
+            pass
+        return ""
+
+    def save_api_key(key: str) -> None:
+        if global_path.exists():
+            content = global_path.read_text()
+            lines = content.split("\n")
+            updated = False
+            for i, line in enumerate(lines):
+                if line.startswith("GEMINI_API_KEY="):
+                    lines[i] = f"GEMINI_API_KEY={key}"
+                    updated = True
+                    break
+            if updated:
+                global_path.write_text("\n".join(lines))
+                return
+        # Create new file
+        global_path.write_text(f"GEMINI_API_KEY={key}\n")
+
+    # Direct API key provided
+    if api_key:
+        save_api_key(api_key)
+        console.print(f"[bold green]✅ API key saved to {global_path}[/bold green]")
+        return
+
+    # Interactive setup
+    console.print("[bold]🤖 AI CLI Setup[/bold]")
+    console.print("=" * 40)
+
+    current_key = get_current_key()
+    if current_key:
+        masked = (
+            current_key[:8] + "..." + current_key[-4:]
+            if len(current_key) > 12
+            else "***"
+        )
+        console.print(f"\nCurrent API key: [dim]{masked}[/dim]")
+        if not typer.confirm("\nUpdate API key?", default=False):
+            console.print("[yellow]No changes made.[/yellow]")
+            return
+
+    console.print("\n[blue]Get your API key from:[/blue]")
+    console.print(
+        "[link=https://makersuite.google.com/app/apikey]https://makersuite.google.com/app/apikey[/link]\n"
+    )
+
+    new_key = typer.prompt("Enter your GEMINI_API_KEY")
+    if not new_key.strip():
+        console.print("[bold red]❌ No API key provided. Aborted.[/bold red]")
+        raise typer.Exit(1)
+
+    save_api_key(new_key.strip())
+    console.print(f"\n[bold green]✅ API key saved to {global_path}[/bold green]")
+    console.print(
+        "\n[bold]🎉 Setup complete![/bold] You can now use ai-cli from any project.\n"
+    )
+    console.print("[dim]Quick start:[/dim]")
+    console.print("  ai-cli smart-commit      [dim]# AI-powered commit[/dim]")
+    console.print("  ai-cli create-pr         [dim]# Create PR from branch[/dim]")
+    console.print("  ai-cli --help            [dim]# See all commands[/dim]")
+
+
+@app.command()
+def config():
+    """
+    🔧 Show ai-cli configuration status.
+
+    Examples:
+        ai-cli config    # Show current config location and status
+    """
+    from pathlib import Path
+
+    global_path = Path.home() / ".config" / "ai-cli" / ".env"
+    local_path = Path(".env")
+
+    console.print("[bold]📁 Configuration Files[/bold]\n")
+
+    # Global config
+    if global_path.exists():
+        console.print(f"[green]✓[/green] Global: {global_path}")
+        # Check for API key
+        content = global_path.read_text()
+        has_key = any(
+            line.startswith("GEMINI_API_KEY=") and line.split("=", 1)[1].strip()
+            for line in content.split("\n")
+        )
+        if has_key:
+            console.print("  [green]✓[/green] GEMINI_API_KEY is set")
+        else:
+            console.print("  [yellow]![/yellow] GEMINI_API_KEY is empty")
+    else:
+        console.print(f"[dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
+
+    # Local config
+    if local_path.exists():
+        console.print(f"[green]✓[/green] Local:  {local_path.absolute()}")
+        console.print("  [dim](takes priority over global)[/dim]")
+    else:
+        console.print("[dim]✗[/dim] Local:  .env [dim](not found)[/dim]")
+
+    console.print("\nRun 'ai-cli setup' to configure your API key.")
+
+
+@app.command()
 def create_repo(
     name: str = typer.Argument(..., help="Name of the repository to create"),
     visibility: str = typer.Option(
