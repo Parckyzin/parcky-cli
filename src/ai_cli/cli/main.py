@@ -25,6 +25,7 @@ from ..infrastructure.ai_service import GeminiAIService
 from ..infrastructure.git_repository import GitRepository
 from ..infrastructure.pr_service import GitHubPRService
 from ..infrastructure.repo_service import GitHubRepoService
+from ..services.create_pr_service import CreatePRService
 from ..services.smart_commit_all_service import SmartCommitAllService
 from ..services.smart_commit_service import SmartCommitService
 
@@ -385,5 +386,122 @@ def smart_commit_all(
         raise typer.Exit(1) from None
 
 
+@app.command()
+def create_pr(
+    base: str = typer.Option(
+        None,
+        "--base",
+        "-b",
+        help="Base branch to create PR against (default: main/master)",
+    ),
+    auto_confirm: bool = typer.Option(
+        False, "--yes", "-y", help="Auto-confirm PR creation"
+    ),
+):
+    """
+    📋 Create a Pull Request based on current branch changes.
+
+    This command will:
+    1. 🔍 Analyze commits on the current branch
+    2. 📊 Compare changes against base branch (main/master)
+    3. 🤖 Generate PR title and description using AI
+    4. 📋 Create the Pull Request on GitHub
+
+    Examples:
+        ai-cli create-pr
+        ai-cli create-pr --base develop
+        ai-cli create-pr --yes
+    """
+    try:
+        config = AppConfig.load()
+        git_repo = GitRepository(config.git)
+        ai_service = GeminiAIService(config.ai)
+
+        try:
+            pr_service = GitHubPRService()
+        except PullRequestError as e:
+            console.print(f"[bold red]❌ GitHub CLI Error:[/bold red] {e}")
+            raise typer.Exit(1) from None
+
+        service = CreatePRService(
+            git_repo=git_repo,
+            ai_service=ai_service,
+            pr_service=pr_service,
+        )
+
+        # Get branch info
+        console.print("[yellow]🔍 Analyzing branch changes...[/yellow]")
+
+        try:
+            branch_info = service.get_branch_info(base)
+        except GitError as e:
+            console.print(f"[bold red]❌ {e}[/bold red]")
+            raise typer.Exit(1) from None
+
+        # Display branch summary
+        console.print(f"\n[bold]Branch:[/bold] {branch_info.name}")
+        console.print(f"[bold]Base:[/bold] {branch_info.base_branch}")
+        console.print(f"[bold]Commits:[/bold] {len(branch_info.commits)}")
+        console.print(f"[bold]Files Changed:[/bold] {len(branch_info.files_changed)}")
+
+        # Show commits
+        if branch_info.commits:
+            console.print("\n[bold]📝 Commits:[/bold]")
+            for commit in branch_info.commits[:10]:
+                console.print(f"  • {commit}")
+            if len(branch_info.commits) > 10:
+                console.print(
+                    f"  [dim]... and {len(branch_info.commits) - 10} more[/dim]"
+                )
+
+        # Show files changed
+        if branch_info.files_changed:
+            console.print("\n[bold]📁 Files Changed:[/bold]")
+            for file in branch_info.files_changed[:10]:
+                console.print(f"  • {file}")
+            if len(branch_info.files_changed) > 10:
+                console.print(
+                    f"  [dim]... and {len(branch_info.files_changed) - 10} more[/dim]"
+                )
+
+        # Generate PR content
+        console.print("\n[yellow]🤖 Generating PR content with AI...[/yellow]")
+        pr = service.generate_pr_content(branch_info)
+
+        # Display PR preview
+        pr_panel = Panel(
+            f"[bold]Title:[/bold] {pr.title}\n\n[bold]Description:[/bold]\n{pr.body}",
+            title="📋 Pull Request Preview",
+            border_style="blue",
+        )
+        console.print(pr_panel)
+
+        # Confirm and create
+        if not auto_confirm and not Confirm.ask("\n🚀 Create this Pull Request?"):
+            console.print("[yellow]ℹ️  PR creation cancelled.[/yellow]")
+            raise typer.Exit(0) from None
+
+        console.print("\n[yellow]📤 Creating Pull Request...[/yellow]")
+        pr_service.create_pull_request(pr)
+        console.print("[bold green]✅ Pull Request created successfully![/bold green]")
+
+    except ConfigurationError as e:
+        console.print(f"[bold red]Configuration Error:[/bold red] {e}")
+        raise typer.Exit(1) from None
+
+    except PullRequestError as e:
+        console.print(f"[bold red]PR Error:[/bold red] {e}")
+        raise typer.Exit(1) from None
+
+    except AIServiceError as e:
+        console.print(f"[bold red]AI Service Error:[/bold red] {e}")
+        raise typer.Exit(1) from None
+
+    except AICliError as e:
+        console.print(f"[bold red]Application Error:[/bold red] {e}")
+        raise typer.Exit(1) from None
+
+
 if __name__ == "__main__":
     app()
+
