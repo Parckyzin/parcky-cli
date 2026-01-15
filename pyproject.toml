@@ -1,0 +1,193 @@
+[project]
+name = "ai-cli"
+version = "0.1.0"
+description = "AI-powered git commit and PR creation tool"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "google-genai>=1.47.0",
+    "hatchling>=1.27.0",
+    "pydantic-settings>=2.11.0",
+    "rich>=14.2.0",
+    "ruff>=0.14.11",
+    "taskipy>=1.14.1",
+    "typer>=0.21.1",
+]
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["git", "ai", "commit", "pull-request", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Version Control :: Git",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+ai-cli = "src.ai_cli.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+exclude = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B905",   # zip without explicit strict parameter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ai_cli"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=src/ai_cli",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--strict-markers",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.taskipy.tasks]
+# Development tasks
+test = "pytest"
+test-cov = "pytest --cov=src/ai_cli --cov-report=term-missing --cov-report=html"
+test-watch = "pytest-watch"
+
+# Linting and formatting
+lint = "ruff check src tests"
+lint-fix = "ruff check src tests --fix"
+fmt = "ruff format src tests"
+fmt-check = "ruff format src tests --check"
+check = "ruff check src tests && ruff format src tests --check"
+check-ci = "task lint && task type-check && task test"
+test-unit = "pytest tests/unit"
+test-integration = "pytest tests/integration"
+test-verbose = "pytest -v"
+test-failed = "pytest --lf"
+
+
+# Security and dependency checks
+security = "bandit -r src/"
+deps-update = "uv lock --upgrade"
+deps-audit = "uv pip audit"
+
+# Development setup
+setup-dev = "uv sync --group dev && pre-commit install"
+setup-hooks = "pre-commit install"
+run-hooks = "pre-commit run --all-files"
+
+# Application tasks
+run = "python main.py"
+cli = "python main.py"
+version = "python main.py version"
+help = "python main.py --help"
+
+# Build and release tasks
+clean = "rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage && find . -type d -name __pycache__ -delete && find . -type f -name '*.pyc' -delete"
+build = "task clean && uv build"
+install-local = "uv pip install -e ."
+release = "task check && task build"
+
+# Documentation tasks
+docs-cov = "python -m http.server 8000 --directory htmlcov"
+docs-serve = "task docs-cov"
+
+# Git tasks
+commit = "python main.py smart-commit"
+commit-no-push = "python main.py smart-commit --no-push"
+commit-pr = "python main.py smart-commit --pr"
+commit-auto = "python main.py smart-commit --yes"
+commit-all = "ai-cli smart-commit-all"
+commit-all-no-push = "ai-cli smart-commit-all --no-push"
+commit-all-auto = "ai-cli smart-commit-all --yes"
+
+# Repository tasks
+create-repo = "ai-cli create-repo"
+
+# Environment and config tasks
+validate-env = "python -c \"from src.ai_cli.config.settings import AppConfig; from src.ai_cli.core.exceptions import ConfigurationError; import os; print('🔍 Validating configuration...'); has_api_key = bool(os.getenv('GEMINI_API_KEY')); print(f'GEMINI_API_KEY: {\"✅ Set\" if has_api_key else \"❌ Missing\"}'); print('✅ Configuration structure is valid!' if has_api_key else '⚠️  Set GEMINI_API_KEY to fully validate configuration')\""
+show-config = "python -c 'from src.ai_cli.config.settings import AppConfig; import json; import os; os.environ[\"GEMINI_API_KEY\"] = os.environ.get(\"GEMINI_API_KEY\", \"dummy\"); config = AppConfig.load(); config_dict = config.to_dict(); config_dict[\"ai\"][\"api_key\"] = \"***HIDDEN***\"; print(json.dumps(config_dict, indent=2))'"
+
