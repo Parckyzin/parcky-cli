@@ -19,9 +19,10 @@ def get_env_files() -> tuple[Path, ...]:
     """Get tuple of .env files to load, in order of priority."""
     env_files = []
 
-    local_env = Path(".env")
-    if local_env.exists():
-        env_files.append(local_env)
+    # local_env = Path(".env")
+    # if local_env.exists():
+    #     env_files.append(local_env)
+    # temp disabled to avoid confusion
 
     global_env = Path.home() / ".config" / "ai-cli" / ".env"
     if global_env.exists():
