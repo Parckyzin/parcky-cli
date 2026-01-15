@@ -95,6 +95,19 @@ commit-no-push:
 commit-pr:
 	uv run task commit-pr
 
+commit-all:
+	uv run task commit-all
+
+commit-all-auto:
+	uv run task commit-all-auto
+
+# Pull Request operations
+pr:
+	uv run task pr
+
+pr-auto:
+	uv run task pr-auto
+
 # Repository operations
 create-repo:
 	@echo "Usage: make create-repo NAME=<repo-name> [VISIBILITY=private] [DESC='description']"
