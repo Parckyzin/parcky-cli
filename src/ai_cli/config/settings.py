@@ -2,6 +2,7 @@
 Configuration management for AI CLI application using pydantic-settings.
 """
 
+from pathlib import Path
 from typing import Optional
 
 from pydantic import Field, field_validator
@@ -10,11 +11,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from ..core.exceptions import ConfigurationError
 
 
+def get_env_files() -> list[Path]:
+    """Get list of .env files to load, in order of priority."""
+    env_files = []
+
+    local_env = Path(".env")
+    if local_env.exists():
+        env_files.append(local_env)
+
+    global_env = Path.home() / ".config" / "ai-cli" / ".env"
+    if global_env.exists():
+        env_files.append(global_env)
+
+    return env_files if env_files else [Path(".env")]
+
+
 class AIConfig(BaseSettings):
     """AI service configuration."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=get_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -52,7 +68,7 @@ class GitConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="GIT_",
-        env_file=".env",
+        env_file=get_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
