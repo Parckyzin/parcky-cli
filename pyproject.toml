@@ -192,6 +192,9 @@ pr = "ai-cli create-pr"
 pr-auto = "ai-cli create-pr --yes"
 
 # Environment and config tasks
+setup = "ai-cli setup"
+env-gen = "python scripts/env-gen.py"
+env-gen-global = "python scripts/env-gen.py --global"
 validate-env = "python -c \"from src.ai_cli.config.settings import AppConfig; from src.ai_cli.core.exceptions import ConfigurationError; import os; print('🔍 Validating configuration...'); has_api_key = bool(os.getenv('GEMINI_API_KEY')); print(f'GEMINI_API_KEY: {\"✅ Set\" if has_api_key else \"❌ Missing\"}'); print('✅ Configuration structure is valid!' if has_api_key else '⚠️  Set GEMINI_API_KEY to fully validate configuration')\""
-show-config = "python -c 'from src.ai_cli.config.settings import AppConfig; import json; import os; os.environ[\"GEMINI_API_KEY\"] = os.environ.get(\"GEMINI_API_KEY\", \"dummy\"); config = AppConfig.load(); config_dict = config.to_dict(); config_dict[\"ai\"][\"api_key\"] = \"***HIDDEN***\"; print(json.dumps(config_dict, indent=2))'"
+show-config = "ai-cli config"
 
