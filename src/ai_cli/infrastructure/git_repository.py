@@ -170,3 +170,82 @@ class GitRepository(GitRepositoryInterface):
             # If nothing is staged, reset might fail - that's ok
             return True
 
+    def get_default_branch(self) -> str:
+        """Get the default branch name (main or master)."""
+        try:
+            # Try to get from remote
+            result = self._run_command(
+                "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ''"
+            )
+            if result:
+                return result.split("/")[-1]
+
+            # Fallback: check if main or master exists
+            branches = self._run_command("git branch -a")
+            if "main" in branches:
+                return "main"
+            return "master"
+        except subprocess.CalledProcessError:
+            return "main"
+
+    def get_branch_commits(self, base_branch: str | None = None) -> list[str]:
+        """Get commit messages for the current branch since branching from base."""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_branch()
+
+            # Get commits on current branch not in base branch
+            commits_output = self._run_command(
+                f"git log {base_branch}..HEAD --pretty=format:'%s' 2>/dev/null || echo ''"
+            )
+
+            if not commits_output:
+                return []
+
+            return [c.strip() for c in commits_output.split("\n") if c.strip()]
+        except subprocess.CalledProcessError:
+            return []
+
+    def get_branch_diff(self, base_branch: str | None = None) -> GitDiff:
+        """Get the diff between current branch and base branch."""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_branch()
+
+            diff_output = self._run_command(f"git diff {base_branch}...HEAD")
+
+            if not diff_output:
+                # Try alternative diff approach
+                diff_output = self._run_command(f"git diff {base_branch}..HEAD")
+
+            is_truncated = False
+            if len(diff_output) > self.config.max_diff_size:
+                diff_output = (
+                    diff_output[: self.config.max_diff_size] + "\n...[TRUNCATED]"
+                )
+                is_truncated = True
+
+            return GitDiff(content=diff_output, is_truncated=is_truncated)
+        except subprocess.CalledProcessError:
+            raise GitError(
+                f"Failed to get diff against {base_branch}. "
+                "Make sure you're not on the default branch."
+            ) from None
+
+    def get_branch_files_changed(self, base_branch: str | None = None) -> list[str]:
+        """Get list of files changed in current branch compared to base."""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_branch()
+
+            files_output = self._run_command(
+                f"git diff {base_branch}...HEAD --name-only"
+            )
+
+            if not files_output:
+                return []
+
+            return [f.strip() for f in files_output.split("\n") if f.strip()]
+        except subprocess.CalledProcessError:
+            return []
+
