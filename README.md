@@ -165,12 +165,43 @@ ai-cli version
 | Command | Description |
 |---------|-------------|
 | `setup` | Configure ai-cli with your API key (interactive or direct) |
-| `config` | Show configuration status and file locations |
+| `config` | Show configuration status and manage models |
+| `config -s` | Interactive model selection from history |
+| `config -m MODEL` | Set model directly |
 | `smart-commit` | Create AI-powered commit from staged changes |
 | `smart-commit-all` | Commit all changes with smart grouping by folder |
 | `create-pr` | Create PR based on current branch changes |
 | `create-repo` | Create a new GitHub repository |
 | `version` | Show version information |
+
+### 🤖 Model Selection
+
+Easily switch between AI models with the interactive selector:
+
+```bash
+ai-cli config --select   # or -s
+```
+
+This shows a list of previously used models:
+```
+🤖 Select AI Model
+┏━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ # ┃ Model            ┃ Status   ┃
+┡━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ 1 │ gemini-2.0-flash │ ● current│
+│ 2 │ gemini-1.5-flash │          │
+│ 3 │ gemini-1.5-pro   │          │
+└───┴──────────────────┴──────────┘
+
+Commands: [1-9] select | [n] new model | [d1-d9] delete | [q] quit
+```
+
+- Press a **number** to select a model
+- Press **n** to add a new model
+- Press **d + number** (e.g., `d2`) to delete a model from history
+- Press **q** to quit
+
+Or set directly: `ai-cli config -m gemini-2.0-flash`
 
 ### Environment Variables
 
