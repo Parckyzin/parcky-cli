@@ -50,46 +50,66 @@ src/ai_cli/
 - [GitHub CLI](https://cli.github.com/) (optional, for PR creation)
 - Google Gemini API key
 
-### Setup
+### Quick Setup
 
-1. **Clone the repository:**
+1. **Install using uv (recommended):**
    ```bash
+   # Clone and install
    git clone <repository-url>
    cd ai-cli
-   ```
-
-2. **Install dependencies using uv (recommended):**
-   ```bash
    uv sync
+   
+   # Install globally
+   uv tool install .
    ```
 
-   Or using pip:
+2. **Configure your API key:**
    ```bash
-   pip install -e .
+   # Interactive setup (easiest)
+   ai-cli setup
+   
+   # Or set directly
+   ai-cli setup --api-key YOUR_API_KEY
    ```
 
-3. **Set up environment variables:**
+   Get your API key from: https://makersuite.google.com/app/apikey
+
+3. **Start using:**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your GEMINI_API_KEY
+   ai-cli smart-commit    # AI-powered commits
+   ai-cli create-pr       # Create PRs
+   ai-cli --help          # See all commands
    ```
 
-4. **Get Google Gemini API Key:**
-   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Create a new API key
-   - Add it to your `.env` file
+### Alternative Setup Methods
 
-5. **Install GitHub CLI (optional, for PR creation):**
-   ```bash
-   # macOS
-   brew install gh
+<details>
+<summary>Manual .env configuration</summary>
 
-   # Ubuntu/Debian
-   sudo apt install gh
+```bash
+# Generate .env file with all options
+python scripts/env-gen.py --stdout  # Preview
+python scripts/env-gen.py           # Generate local .env
+python scripts/env-gen.py --global  # Generate global config
+```
 
-   # Windows
-   winget install GitHub.cli
-   ```
+</details>
+
+<details>
+<summary>Install GitHub CLI (optional, for PR creation)</summary>
+
+```bash
+# macOS
+brew install gh
+
+# Ubuntu/Debian
+sudo apt install gh
+
+# Windows
+winget install GitHub.cli
+```
+
+</details>
 
 6. **Install globally (to use in other projects):**
    ```bash
@@ -144,6 +164,8 @@ ai-cli version
 
 | Command | Description |
 |---------|-------------|
+| `setup` | Configure ai-cli with your API key (interactive or direct) |
+| `config` | Show configuration status and file locations |
 | `smart-commit` | Create AI-powered commit from staged changes |
 | `smart-commit-all` | Commit all changes with smart grouping by folder |
 | `create-pr` | Create PR based on current branch changes |
