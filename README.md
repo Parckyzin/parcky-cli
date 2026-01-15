@@ -2,8 +2,8 @@
 
 AI-powered git commit and pull request creation tool using Google Gemini.
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 
 ## ✨ Features
@@ -11,6 +11,8 @@ AI-powered git commit and pull request creation tool using Google Gemini.
 - 🤖 **AI-Powered Commits**: Generate conventional commit messages using Google Gemini (latest google.genai package)
 - 📋 **Smart Pull Requests**: Create PR titles and descriptions automatically
 - 🚀 **Auto Push**: Automatically push commits to remote repository
+- 📁 **Smart Commit All**: Commit all changes grouped by folder and context
+- 🔗 **Branch-based PRs**: Create PRs based on all changes in a branch
 - 🎯 **Conventional Commits**: Follows the conventional commits specification
 - 🛡️ **Type Safety**: Fully typed with mypy support
 - 🧪 **Well Tested**: Comprehensive test suite with pytest
@@ -43,7 +45,7 @@ src/ai_cli/
 
 ### Requirements
 
-- Python 3.9 or higher
+- Python 3.13 or higher (recommended)
 - Git
 - [GitHub CLI](https://cli.github.com/) (optional, for PR creation)
 - Google Gemini API key
@@ -89,6 +91,13 @@ src/ai_cli/
    winget install GitHub.cli
    ```
 
+6. **Install globally (to use in other projects):**
+   ```bash
+   uv tool install .
+   ```
+
+   Configuration is stored at `~/.config/ai-cli/.env`
+
 ## 📖 Usage
 
 ### Basic Usage
@@ -100,7 +109,7 @@ git add .
 ai-cli smart-commit
 ```
 
-### Command Options
+### Available Commands
 
 ```bash
 # Basic commit (with push)
@@ -115,9 +124,31 @@ ai-cli smart-commit --pr
 # Auto-confirm all prompts
 ai-cli smart-commit --yes
 
-# Combine options
-ai-cli smart-commit --pr --yes
+# Commit ALL changes with smart grouping by folder
+ai-cli smart-commit-all
+
+# Create PR based on current branch changes
+ai-cli create-pr
+
+# Create PR against specific base branch
+ai-cli create-pr --base develop
+
+# Create a new GitHub repository
+ai-cli create-repo my-project --visibility public --description "My project"
+
+# Show version
+ai-cli version
 ```
+
+### Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `smart-commit` | Create AI-powered commit from staged changes |
+| `smart-commit-all` | Commit all changes with smart grouping by folder |
+| `create-pr` | Create PR based on current branch changes |
+| `create-repo` | Create a new GitHub repository |
+| `version` | Show version information |
 
 ### Environment Variables
 
@@ -146,19 +177,19 @@ pre-commit install
 
 ```bash
 # Format code
-black src tests
-
-# Sort imports
-isort src tests
+uv run ruff format src tests
 
 # Lint code
-flake8 src tests
+uv run ruff check src tests
+
+# Fix lint issues automatically
+uv run ruff check src tests --fix
 
 # Type checking
 mypy src
 
 # Run all checks
-pre-commit run --all-files
+uv run task check
 ```
 
 ### Testing
@@ -261,6 +292,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Google Gemini](https://ai.google.dev/) for AI capabilities (using latest google.genai package)
 - [Typer](https://typer.tiangolo.com/) for CLI framework
 - [Rich](https://rich.readthedocs.io/) for beautiful terminal output
+- [Ruff](https://github.com/astral-sh/ruff) for fast linting and formatting
 - [Conventional Commits](https://www.conventionalcommits.org/) for commit standards
 - [Pydantic](https://pydantic.dev/) for settings management and validation
 - [Taskipy](https://github.com/taskipy/taskipy) for task automation
