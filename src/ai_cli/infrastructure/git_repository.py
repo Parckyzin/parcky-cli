@@ -2,6 +2,7 @@
 Git repository implementation.
 """
 
+import os
 import re
 import subprocess
 
@@ -16,12 +17,19 @@ class GitRepository(GitRepositoryInterface):
 
     def __init__(self, config: GitConfig):
         self.config = config
+        # Use AI_CLI_WORK_DIR if set, otherwise use current directory
+        self.work_dir = os.environ.get("AI_CLI_WORK_DIR", os.getcwd())
 
     def _run_command(self, command: str) -> str:
         """Run a git command and return the output."""
         try:
             result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=True
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=self.work_dir,
             )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
