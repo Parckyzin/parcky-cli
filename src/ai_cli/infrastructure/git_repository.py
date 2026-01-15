@@ -63,7 +63,6 @@ class GitRepository(GitRepositoryInterface):
     def commit(self, message: str) -> bool:
         """Create a commit with the given message."""
         try:
-            # Escape quotes in the message
             escaped_message = message.replace('"', '\\"')
             self._run_command(f'git commit -m "{escaped_message}"')
             return True
@@ -98,15 +97,12 @@ class GitRepository(GitRepositoryInterface):
             for line in status_output.split("\n"):
                 if not line.strip():
                     continue
-                # Format: XY filename (X=staged status, Y=unstaged status)
                 status = line[:2].strip()
                 file_path = line[3:].strip()
 
-                # Handle renamed files (R status shows "old -> new")
                 if " -> " in file_path:
                     file_path = file_path.split(" -> ")[1]
 
-                # Skip if status is empty
                 if status:
                     changes.append(FileChange(path=file_path, status=status))
 
@@ -119,7 +115,6 @@ class GitRepository(GitRepositoryInterface):
         if not file_paths:
             return True
         try:
-            # Quote file paths to handle spaces
             quoted_paths = " ".join(f'"{path}"' for path in file_paths)
             self._run_command(f"git add {quoted_paths}")
             return True
@@ -132,16 +127,12 @@ class GitRepository(GitRepositoryInterface):
             return GitDiff(content="", is_truncated=False)
         try:
             quoted_paths = " ".join(f'"{path}"' for path in file_paths)
-            # Get diff for the files (combine staged and unstaged)
             diff_output = self._run_command(f"git diff HEAD -- {quoted_paths}")
 
-            # If no diff against HEAD, try without HEAD (for new files)
             if not diff_output:
                 diff_output = self._run_command(f"git diff --cached -- {quoted_paths}")
 
-            # For untracked files, we need to show file contents
             if not diff_output:
-                # Check if files are untracked
                 for path in file_paths:
                     try:
                         content = self._run_command(f"cat '{path}'")
@@ -167,13 +158,11 @@ class GitRepository(GitRepositoryInterface):
             self._run_command("git reset HEAD")
             return True
         except subprocess.CalledProcessError:
-            # If nothing is staged, reset might fail - that's ok
             return True
 
     def get_default_branch(self) -> str:
         """Get the default branch name (main or master)."""
         try:
-            # Try to get from remote HEAD reference
             try:
                 result = self._run_command("git symbolic-ref refs/remotes/origin/HEAD")
                 if result:
@@ -181,7 +170,6 @@ class GitRepository(GitRepositoryInterface):
             except subprocess.CalledProcessError:
                 pass
 
-            # Fallback: check remote branches for main or master
             try:
                 remote_branches = self._run_command("git branch -r")
                 if "origin/main" in remote_branches:
@@ -212,7 +200,6 @@ class GitRepository(GitRepositoryInterface):
             if base_branch is None:
                 base_branch = self.get_default_branch()
 
-            # Get commits on current branch not in base branch
             commits_output = self._run_command(
                 f"git log {base_branch}..HEAD --pretty=format:'%s' 2>/dev/null || echo ''"
             )
@@ -233,7 +220,6 @@ class GitRepository(GitRepositoryInterface):
             diff_output = self._run_command(f"git diff {base_branch}...HEAD")
 
             if not diff_output:
-                # Try alternative diff approach
                 diff_output = self._run_command(f"git diff {base_branch}..HEAD")
 
             is_truncated = False
