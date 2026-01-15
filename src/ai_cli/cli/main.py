@@ -54,7 +54,7 @@ class CLIController:
         self.ai_service = GeminiAIService(self.config.ai)
 
         try:
-            self.pr_service = GitHubPRService()
+            self.pr_service = GitHubPRService(work_dir=self.git_repo.work_dir)
         except PullRequestError as e:
             if self.config.debug:
                 console.print(f"[yellow]Warning:[/yellow] {e}")
@@ -752,7 +752,7 @@ def create_pr(
         ai_service = GeminiAIService(config.ai)
 
         try:
-            pr_service = GitHubPRService()
+            pr_service = GitHubPRService(work_dir=git_repo.work_dir)
         except PullRequestError as e:
             console.print(f"[bold red]❌ GitHub CLI Error:[/bold red] {e}")
             raise typer.Exit(1) from None
