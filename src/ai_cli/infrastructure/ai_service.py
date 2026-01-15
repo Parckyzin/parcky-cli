@@ -39,7 +39,6 @@ class GeminiAIService(AIServiceInterface):
         """Generate content using the AI model with retry logic."""
         full_prompt = f"{prompt}\n\nCONTEXT:\n{context}"
 
-        # Configure generation parameters
         config = GenerateContentConfig(
             temperature=self.config.temperature,
             max_output_tokens=self.config.max_tokens,
