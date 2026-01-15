@@ -5,6 +5,7 @@ Service for smart commit all operations - commits all changes grouped by folder/
 from collections import defaultdict
 from dataclasses import dataclass
 
+from ..config.prompts import get_prompt
 from ..core.interfaces import AIServiceInterface, GitRepositoryInterface
 from ..core.models import FileChange, FileGroup
 
@@ -69,27 +70,16 @@ class SmartCommitAllService:
         file_paths = [f.path for f in files]
         diff = self.git_repo.get_diff_for_files(file_paths)
 
-        prompt = f"""
-Analyze these changed files in folder '{folder}' and determine which files should be committed together.
-Files that are related (e.g., a module and its tests, related refactoring, feature implementation across files)
-should be in the same group.
+        # Get prompt template and fill in variables
+        prompt_template = get_prompt("file_correlation")
+        files_list = "\n".join(f"- {f.path} ({f.status})" for f in files)
+        diff_content = diff.content[:3000] if diff.content else "No diff available"
 
-Files:
-{chr(10).join(f"- {f.path} ({f.status})" for f in files)}
-
-Diff context:
-{diff.content[:3000] if diff.content else "No diff available"}
-
-Respond with groups in this exact format (one group per line):
-GROUP: file1.py, file2.py
-GROUP: file3.py
-
-Rules:
-1. Each file must appear in exactly one group
-2. Related files should be in the same group
-3. Unrelated files should be in separate groups
-4. If all files are related, put them in one group
-"""
+        prompt = prompt_template.format(
+            folder=folder,
+            files_list=files_list,
+            diff_content=diff_content,
+        )
 
         try:
             response = self.ai_service._generate_content(prompt, "")

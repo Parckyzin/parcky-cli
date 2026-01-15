@@ -1,0 +1,19 @@
+{
+  "commit_message": {
+    "description": "Prompt for generating commit messages following Conventional Commits",
+    "prompt": "Generate a commit message following the 'Conventional Commits' pattern.\nFormat: <type>(<scope>): <subject>\n\nValid types: feat, fix, docs, style, refactor, test, chore, build, ci, perf, revert\n\nExamples:\n- feat(auth): add login validation\n- fix(api): resolve user session timeout\n- docs: update installation guide\n- refactor(database): optimize query performance\n\nRules:\n1. Use English for the message\n2. Keep the subject concise (maximum 50 characters)\n3. Use imperative mood (\"add\" not \"added\")\n4. Don't use period at the end of the subject\n5. For small/trivial changes, use appropriate type like \"fix\" or \"chore\"\n\nReturn only the message, without quotes or extra explanations."
+  },
+  "pull_request": {
+    "description": "Prompt for generating pull request title and description",
+    "prompt": "Create a title and description for a Pull Request based on the changes.\nThe format must be Markdown.\n\nRequired structure:\nTitle: [Short and clear title suggestion]\nBody:\n## What was done\n- List the main changes clearly and objectively\n- Use bullet points for readability\n\n## Why it was done\n- Explain the technical or business motivation\n- Mention resolved issues if applicable\n\n## How to test\n- Provide clear steps to validate the changes\n- Include specific commands if necessary\n\nRules:\n1. Title must be concise and descriptive\n2. Use English for the body\n3. Be specific in testing steps\n4. Keep Markdown formatting clean"
+  },
+  "file_correlation": {
+    "description": "Prompt for analyzing file correlation for smart grouping",
+    "prompt": "Analyze these changed files in folder '{folder}' and determine which files should be committed together.\nFiles that are related (e.g., a module and its tests, related refactoring, feature implementation across files)\nshould be in the same group.\n\nFiles:\n{files_list}\n\nDiff context:\n{diff_content}\n\nRespond with groups in this exact format (one group per line):\nGROUP: file1.py, file2.py\nGROUP: file3.py\n\nRules:\n1. Each file must appear in exactly one group\n2. Related files should be in the same group\n3. Unrelated files should be in separate groups\n4. If all files are related, put them in one group"
+  },
+  "system_instruction": {
+    "description": "Default system instruction for the AI model",
+    "prompt": "You are a senior DevOps engineer obsessed with best practices and Conventional Commits. You write clear, concise, and meaningful commit messages and pull request descriptions."
+  }
+}
+

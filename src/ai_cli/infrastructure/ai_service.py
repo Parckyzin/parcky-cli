@@ -8,6 +8,7 @@ import time
 import google.genai as genai
 from google.genai.types import GenerateContentConfig
 
+from ..config.prompts import get_prompt
 from ..config.settings import AIConfig
 from ..core.exceptions import AIServiceError
 from ..core.interfaces import AIServiceInterface
@@ -80,58 +81,12 @@ class GeminiAIService(AIServiceInterface):
 
     def generate_commit_message(self, diff: GitDiff) -> str:
         """Generate a commit message based on the diff."""
-        prompt = """
-        Gere uma mensagem de commit seguindo o padrão 'Conventional Commits'.
-        Formato: <type>(<scope>): <subject>
-
-        Tipos válidos: feat, fix, docs, style, refactor, test, chore, build, ci, perf, revert
-
-        Exemplos:
-        - feat(auth): add login validation
-        - fix(api): resolve user session timeout
-        - docs: update installation guide
-        - refactor(database): optimize query performance
-
-        Regras:
-        1. Use inglês para a mensagem
-        2. Mantenha o subject conciso (máximo 50 caracteres)
-        3. Use imperativo ("add" não "added")
-        4. Não use ponto final no subject
-        5. Se for mudança pequena/trivial, use tipo apropriado como "fix" ou "chore"
-
-        Apenas retorne a mensagem, sem aspas ou explicações extras.
-        """
-
+        prompt = get_prompt("commit_message")
         return self._generate_content(prompt, diff.content)
 
     def generate_pull_request(self, diff: GitDiff, commit_msg: str) -> PullRequest:
         """Generate a pull request title and description."""
-        prompt = """
-        Crie um título e uma descrição para um Pull Request baseados nas alterações.
-        O formato deve ser Markdown.
-
-        Estrutura obrigatória:
-        Title: [Sugestão de título curto e claro]
-        Body:
-        ## O que foi feito
-        - Liste as principais mudanças de forma clara e objetiva
-        - Use tópicos para facilitar a leitura
-
-        ## Por que foi feito
-        - Explique a motivação técnica ou de negócio
-        - Mencione problemas resolvidos se aplicável
-
-        ## Como testar
-        - Forneça passos claros para validar as mudanças
-        - Inclua comandos específicos se necessário
-
-        Regras:
-        1. Título deve ser conciso e descritivo
-        2. Use português para o corpo
-        3. Seja específico nos passos de teste
-        4. Mantenha formatação Markdown limpa
-        """
-
+        prompt = get_prompt("pull_request")
         context = f"Commit Message: {commit_msg}\n\nDiff:\n{diff.content}"
         ai_response = self._generate_content(prompt, context)
 
@@ -154,7 +109,6 @@ class GeminiAIService(AIServiceInterface):
                 body_lines.append(line)
 
         if not title:
-            # Fallback: use first line as title
             title = lines[0].strip()
             body_lines = lines[1:]
 

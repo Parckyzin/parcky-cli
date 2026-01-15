@@ -161,6 +161,44 @@ ai-cli version
 | `DEFAULT_BRANCH` | Default git branch | `main` |
 | `DEBUG` | Enable debug mode | `false` |
 
+### 🎨 Customizing AI Prompts
+
+You can customize all AI prompts by editing the `prompts.json` file. The tool looks for prompts in this order:
+
+1. `./prompts.json` (project directory - highest priority)
+2. `~/.config/ai-cli/prompts.json` (global config)
+3. Built-in defaults (fallback)
+
+**Available prompts:**
+
+| Key | Description |
+|-----|-------------|
+| `commit_message` | Prompt for generating commit messages |
+| `pull_request` | Prompt for generating PR title and description |
+| `file_correlation` | Prompt for analyzing which files should be committed together |
+| `system_instruction` | System instruction for the AI model |
+
+**Example `prompts.json`:**
+
+```json
+{
+  "commit_message": {
+    "description": "Prompt for generating commit messages",
+    "prompt": "Generate a commit message following Conventional Commits..."
+  },
+  "pull_request": {
+    "description": "Prompt for generating PR content",
+    "prompt": "Create a title and description for a Pull Request..."
+  }
+}
+```
+
+This allows you to:
+- Change the language of generated messages
+- Modify the commit message format
+- Customize PR templates
+- Adjust AI behavior per project
+
 ## 🔧 Development
 
 ### Setup Development Environment
