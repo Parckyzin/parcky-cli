@@ -53,7 +53,6 @@ class CLIController:
         self.git_repo = GitRepository(self.config.git)
         self.ai_service = GeminiAIService(self.config.ai)
 
-        # PR service is optional
         try:
             self.pr_service = GitHubPRService()
         except PullRequestError as e:
@@ -74,7 +73,6 @@ class CLIController:
         try:
             console.print("[yellow]🔍 Analyzing staged changes...[/yellow]")
 
-            # Get staged changes
             diff = self.smart_commit_service.get_staged_changes()
 
             if diff.is_truncated:
@@ -82,11 +80,9 @@ class CLIController:
                     "[yellow]⚠️  Large diff detected - truncated for AI analysis[/yellow]"
                 )
 
-            # Generate commit message
             console.print("[yellow]🤖 Generating commit message with AI...[/yellow]")
             commit_msg = self.smart_commit_service.generate_commit_message(diff)
 
-            # Display suggestion
             panel = Panel(
                 Text(commit_msg, style="bold green"),
                 title="💡 Suggested Commit Message",
