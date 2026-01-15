@@ -2,6 +2,7 @@
 Git repository implementation.
 """
 
+import re
 import subprocess
 
 from ..config.settings import GitConfig
@@ -88,7 +89,6 @@ class GitRepository(GitRepositoryInterface):
     def get_all_changes(self) -> list[FileChange]:
         """Get all changed files (staged and unstaged, including untracked)."""
         try:
-            # Get modified/staged/deleted files
             status_output = self._run_command("git status --porcelain")
             if not status_output:
                 return []
@@ -97,8 +97,12 @@ class GitRepository(GitRepositoryInterface):
             for line in status_output.split("\n"):
                 if not line.strip():
                     continue
-                status = line[:2].strip()
-                file_path = line[3:].strip()
+                status_regex = r"^([ MADRCU\?]{1,2})\s+(.+)$"
+                match = re.match(status_regex, line)
+                if not match:
+                    continue
+                status = match.group(1).strip()
+                file_path = match.group(2).strip()
 
                 if " -> " in file_path:
                     file_path = file_path.split(" -> ")[1]
