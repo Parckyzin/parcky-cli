@@ -365,7 +365,9 @@ def smart_commit_all(
         )
 
         if result.pushed:
-            console.print("[bold green]✅ All changes pushed successfully![/bold green]")
+            console.print(
+                "[bold green]✅ All changes pushed successfully![/bold green]"
+            )
         elif push and result.successful_commits > 0:
             console.print("[bold yellow]⚠️  Push failed[/bold yellow]")
 
@@ -504,4 +506,3 @@ def create_pr(
 
 if __name__ == "__main__":
     app()
-
