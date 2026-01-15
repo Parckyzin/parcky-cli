@@ -51,7 +51,6 @@ class CreatePRService:
         if base_branch is None:
             base_branch = self.git_repo.get_default_branch()
 
-        # Check if we're on the default branch
         if current_branch.name == base_branch:
             raise GitError(
                 f"You are on the default branch '{base_branch}'. "
