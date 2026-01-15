@@ -2,6 +2,7 @@
 Pull request service implementation using GitHub CLI.
 """
 
+import os
 import subprocess
 
 from ..core.exceptions import PullRequestError
@@ -12,8 +13,11 @@ from ..core.models import PullRequest
 class GitHubPRService(PullRequestServiceInterface):
     """GitHub pull request service using GitHub CLI."""
 
-    def __init__(self):
+    def __init__(self, work_dir: str | None = None):
+        # Ensure gh is available
         self._check_gh_cli()
+        # Align working directory with git operations (matches GitRepository)
+        self.work_dir = work_dir or os.environ.get("AI_CLI_WORK_DIR", os.getcwd())
 
     def _check_gh_cli(self) -> None:
         """Check if GitHub CLI is available."""
@@ -26,9 +30,11 @@ class GitHubPRService(PullRequestServiceInterface):
             ) from None
 
     def _run_gh_command(self, command: list) -> str:
-        """Run a GitHub CLI command."""
+        """Run a GitHub CLI command in the target repository directory."""
         try:
-            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=True, cwd=self.work_dir
+            )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             raise PullRequestError(f"GitHub CLI command failed: {e.stderr}") from e
