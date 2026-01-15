@@ -5,14 +5,18 @@ Configuration management for AI CLI application using pydantic-settings.
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 from ..core.exceptions import ConfigurationError
 
 
-def get_env_files() -> list[Path]:
-    """Get list of .env files to load, in order of priority."""
+def get_env_files() -> tuple[Path, ...]:
+    """Get tuple of .env files to load, in order of priority."""
     env_files = []
 
     local_env = Path(".env")
@@ -23,26 +27,27 @@ def get_env_files() -> list[Path]:
     if global_env.exists():
         env_files.append(global_env)
 
-    return env_files if env_files else [Path(".env")]
+    return tuple(env_files) if env_files else (Path(".env"),)
 
 
 class AIConfig(BaseSettings):
     """AI service configuration."""
 
     model_config = SettingsConfigDict(
-        env_file=get_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
     api_key: str = Field(
-        ..., description="Google Gemini API key", validation_alias="GEMINI_API_KEY"
+        ...,
+        description="Google Gemini API key",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "gemini_api_key"),
     )
     model_name: str = Field(
         default="gemini-2.0-flash",
         description="Gemini model to use",
-        validation_alias="MODEL_NAME",
+        validation_alias=AliasChoices("MODEL_NAME", "model_name"),
     )
     system_instruction: str = Field(
         default="You are a senior DevOps engineer obsessed with best practices and Conventional Commits.",
@@ -54,6 +59,27 @@ class AIConfig(BaseSettings):
     temperature: float = Field(
         default=0.7, ge=0.0, le=2.0, description="AI temperature (0.0-2.0)"
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize settings sources to dynamically load env files."""
+        from pydantic_settings import DotEnvSettingsSource
+
+        # Create a new dotenv source with fresh env files
+        dotenv_source = DotEnvSettingsSource(
+            settings_cls,
+            env_file=get_env_files(),
+            env_file_encoding="utf-8",
+        )
+
+        return (init_settings, env_settings, dotenv_source, file_secret_settings)
 
     @field_validator("api_key")
     @classmethod
@@ -68,7 +94,6 @@ class GitConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="GIT_",
-        env_file=get_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -79,6 +104,27 @@ class GitConfig(BaseSettings):
     )
     default_branch: str = Field(default="main", description="Default git branch name")
     auto_push: bool = Field(default=True, description="Auto push commits by default")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize settings sources to dynamically load env files."""
+        from pydantic_settings import DotEnvSettingsSource
+
+        dotenv_source = DotEnvSettingsSource(
+            settings_cls,
+            env_file=get_env_files(),
+            env_file_encoding="utf-8",
+            env_prefix="GIT_",
+        )
+
+        return (init_settings, env_settings, dotenv_source, file_secret_settings)
 
     @field_validator("default_branch")
     @classmethod
