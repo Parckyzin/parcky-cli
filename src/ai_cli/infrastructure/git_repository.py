@@ -173,19 +173,37 @@ class GitRepository(GitRepositoryInterface):
     def get_default_branch(self) -> str:
         """Get the default branch name (main or master)."""
         try:
-            # Try to get from remote
-            result = self._run_command(
-                "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ''"
-            )
-            if result:
-                return result.split("/")[-1]
+            # Try to get from remote HEAD reference
+            try:
+                result = self._run_command("git symbolic-ref refs/remotes/origin/HEAD")
+                if result:
+                    return result.split("/")[-1]
+            except subprocess.CalledProcessError:
+                pass
 
-            # Fallback: check if main or master exists
-            branches = self._run_command("git branch -a")
-            if "main" in branches:
-                return "main"
-            return "master"
-        except subprocess.CalledProcessError:
+            # Fallback: check remote branches for main or master
+            try:
+                remote_branches = self._run_command("git branch -r")
+                if "origin/main" in remote_branches:
+                    return "main"
+                if "origin/master" in remote_branches:
+                    return "master"
+            except subprocess.CalledProcessError:
+                pass
+
+            try:
+                local_branches = self._run_command("git branch")
+                for line in local_branches.split("\n"):
+                    branch = line.strip().lstrip("* ")
+                    if branch == "main":
+                        return "main"
+                    if branch == "master":
+                        return "master"
+            except subprocess.CalledProcessError:
+                pass
+
+            return "main"
+        except Exception:
             return "main"
 
     def get_branch_commits(self, base_branch: str | None = None) -> list[str]:
@@ -248,4 +266,3 @@ class GitRepository(GitRepositoryInterface):
             return [f.strip() for f in files_output.split("\n") if f.strip()]
         except subprocess.CalledProcessError:
             return []
-

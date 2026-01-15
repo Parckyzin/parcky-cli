@@ -74,7 +74,9 @@ class GeminiAIService(AIServiceInterface):
                 # For non-rate-limit errors, don't retry
                 break
 
-        raise AIServiceError(f"Failed to generate AI content: {last_error}") from last_error
+        raise AIServiceError(
+            f"Failed to generate AI content: {last_error}"
+        ) from last_error
 
     def generate_commit_message(self, diff: GitDiff) -> str:
         """Generate a commit message based on the diff."""
