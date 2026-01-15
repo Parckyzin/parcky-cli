@@ -312,45 +312,251 @@ def setup(
     console.print("  ai-cli --help            [dim]# See all commands[/dim]")
 
 
+def _get_config_value(config_path, key: str) -> str:
+    """Read a config value from a .env file."""
+    if not config_path.exists():
+        return ""
+    try:
+        for line in config_path.read_text().split("\n"):
+            if line.startswith(f"{key}="):
+                value = line.split("=", 1)[1].strip()
+                # Remove quotes if present
+                if (
+                    value.startswith('"')
+                    and value.endswith('"')
+                    or value.startswith("'")
+                    and value.endswith("'")
+                ):
+                    value = value[1:-1]
+                return value
+    except Exception:
+        pass
+    return ""
+
+
+def _set_config_value(config_path, key: str, value: str) -> None:
+    """Set or update a config value in a .env file."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if config_path.exists():
+        content = config_path.read_text()
+        lines = content.split("\n")
+        updated = False
+        for i, line in enumerate(lines):
+            if line.startswith(f"{key}="):
+                lines[i] = f'{key}="{value}"'
+                updated = True
+                break
+        if updated:
+            config_path.write_text("\n".join(lines))
+            return
+        # Key not found, append it
+        if lines and lines[-1]:
+            lines.append("")
+        lines.append(f'{key}="{value}"')
+        config_path.write_text("\n".join(lines))
+    else:
+        config_path.write_text(f'{key}="{value}"\n')
+
+
 @app.command()
-def config():
+def config(
+    set_model: str = typer.Option(
+        None, "--model", "-m", help="Set the AI model to use"
+    ),
+    use_global: bool = typer.Option(
+        False, "--global", "-g", help="Apply changes to global config"
+    ),
+    select_model: bool = typer.Option(
+        False, "--select", "-s", help="Interactive model selection from history"
+    ),
+):
     """
-    🔧 Show ai-cli configuration status.
+    🔧 Show or update ai-cli configuration.
 
     Examples:
-        ai-cli config    # Show current config location and status
+        ai-cli config                    # Show current config
+        ai-cli config --select           # Interactive model selection
+        ai-cli config --model gemini-2.0-flash  # Change model directly
+        ai-cli config --model gemini-2.0-flash --global  # Change model globally
     """
     from pathlib import Path
+
+    from ..config.cache import get_cache
 
     global_path = Path.home() / ".config" / "ai-cli" / ".env"
     local_path = Path(".env")
 
-    console.print("[bold]📁 Configuration Files[/bold]\n")
+    # Determine active config (local takes priority)
+    active_path = local_path if local_path.exists() and not use_global else global_path
+    cache = get_cache()
 
-    # Global config
-    if global_path.exists():
-        console.print(f"[green]✓[/green] Global: {global_path}")
-        # Check for API key
-        content = global_path.read_text()
-        has_key = any(
-            line.startswith("GEMINI_API_KEY=") and line.split("=", 1)[1].strip()
-            for line in content.split("\n")
+    # Interactive model selection
+    if select_model:
+        _interactive_model_select(active_path, cache)
+        return
+
+    # If setting model directly, update and exit
+    if set_model:
+        _set_config_value(active_path, "MODEL_NAME", set_model)
+        cache.add_model_to_history(set_model)
+        console.print(f"[bold green]✅ Model set to:[/bold green] {set_model}")
+        console.print(f"[dim]   Saved to: {active_path}[/dim]")
+        return
+
+    # Show config status
+    _show_config_status(global_path, local_path)
+
+
+def _interactive_model_select(active_path, cache) -> None:
+    """Interactive model selection with arrow keys navigation."""
+    from rich.table import Table
+
+    models = cache.get_model_history()
+    current_model = _get_config_value(active_path, "MODEL_NAME") or "gemini-2.0-flash"
+    selected_idx = 0
+
+    # Find current model index
+    for i, model in enumerate(models):
+        if model == current_model:
+            selected_idx = i
+            break
+
+    def render_table(models_list: list[str], sel_idx: int, curr_model: str) -> Table:
+        """Render the model selection table."""
+        table = Table(show_header=True, header_style="bold", title="🤖 Select AI Model")
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Model")
+        table.add_column("Status", width=12)
+
+        for i, model in enumerate(models_list):
+            prefix = "→ " if i == sel_idx else "  "
+            # Use Text object to avoid markup issues with model names
+            if i == sel_idx:
+                model_text = Text(model, style="bold reverse cyan")
+            else:
+                model_text = Text(model, style="cyan")
+            status = "[green]● current[/green]" if model == curr_model else ""
+            table.add_row(f"{prefix}{i + 1}", model_text, status)
+
+        return table
+
+    while True:
+        # Clear and render
+        console.clear()
+        console.print(render_table(models, selected_idx, current_model))
+        console.print(
+            "\n[dim]↑/↓: Navigate | Enter: Select | n: New | d: Delete | q: Quit[/dim]"
         )
-        if has_key:
-            console.print("  [green]✓[/green] GEMINI_API_KEY is set")
-        else:
-            console.print("  [yellow]![/yellow] GEMINI_API_KEY is empty")
-    else:
-        console.print(f"[dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
 
-    # Local config
+        # Get single keypress
+        key = _get_keypress()
+
+        if key in ("q", "Q", "\x1b"):  # q or Escape
+            console.print("[yellow]Cancelled.[/yellow]")
+            return
+
+        if key in ("\r", "\n") and models:  # Enter
+            selected = models[selected_idx]
+            cache.add_model_to_history(selected)
+            _set_config_value(active_path, "MODEL_NAME", selected)
+            console.print(f"\n[bold green]✅ Model set to:[/bold green] {selected}")
+            return
+
+        if key in ("k", "K", "\x1b[A"):  # Up arrow or k
+            selected_idx = (selected_idx - 1) % len(models) if models else 0
+
+        if key in ("j", "J", "\x1b[B"):  # Down arrow or j
+            selected_idx = (selected_idx + 1) % len(models) if models else 0
+
+        if key in ("n", "N"):  # New model
+            console.print("\n[bold]Add New Model[/bold]")
+            new_model = typer.prompt("Enter model name (empty to cancel)", default="")
+            if new_model.strip():
+                cache.add_model_to_history(new_model.strip())
+                _set_config_value(active_path, "MODEL_NAME", new_model.strip())
+                console.print(
+                    f"\n[bold green]✅ Model set to:[/bold green] {new_model.strip()}"
+                )
+                return
+            # Refresh models list
+            models = cache.get_model_history()
+
+        if key in ("d", "D"):  # Delete
+            if models and len(models) > 1:
+                model_to_delete = models[selected_idx]
+                console.print(
+                    f"\n[bold yellow]Delete model:[/bold yellow] {model_to_delete}"
+                )
+                if typer.confirm("Are you sure?", default=False):
+                    cache.remove_model_from_history(model_to_delete)
+                    models = cache.get_model_history()
+                    selected_idx = min(selected_idx, len(models) - 1)
+                    console.print(f"[yellow]Removed:[/yellow] {model_to_delete}")
+            elif models:
+                console.print("\n[red]Cannot delete the last model.[/red]")
+                typer.prompt("Press Enter to continue", default="")
+
+
+def _get_keypress() -> str:
+    """Get a single keypress from the user."""
+    import sys
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.read(1)
+        if ch == "\x1b":
+            ch2 = sys.stdin.read(1)
+            if ch2 == "[":
+                ch3 = sys.stdin.read(1)
+                return f"\x1b[{ch3}"
+            return ch
+        return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def _show_config_status(global_path, local_path) -> None:
+    """Show current configuration status."""
+    console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
+
+    active_path = local_path if local_path.exists() else global_path
+    active_label = "local" if local_path.exists() else "global"
+
+    api_key = _get_config_value(active_path, "GEMINI_API_KEY")
+    model_name = _get_config_value(active_path, "MODEL_NAME") or "gemini-2.0-flash"
+
+    console.print("[bold]Current Settings:[/bold]")
+    if api_key:
+        masked = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+        console.print(f"  API Key: [green]{masked}[/green]")
+    else:
+        console.print("  API Key: [red]Not set[/red]")
+
+    console.print(f"  Model:   [cyan]{model_name}[/cyan]")
+    console.print(f"  Source:  [dim]{active_label} ({active_path})[/dim]")
+
+    # Show config files status
+    console.print("\n[bold]Config Files:[/bold]")
+    if global_path.exists():
+        console.print(f"  [green]✓[/green] Global: {global_path}")
+    else:
+        console.print(f"  [dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
+
     if local_path.exists():
-        console.print(f"[green]✓[/green] Local:  {local_path.absolute()}")
-        console.print("  [dim](takes priority over global)[/dim]")
+        console.print(f"  [green]✓[/green] Local:  {local_path.absolute()}")
+        console.print("    [dim](takes priority over global)[/dim]")
     else:
-        console.print("[dim]✗[/dim] Local:  .env [dim](not found)[/dim]")
+        console.print("[dim]  ✗ Local:  .env (not found)[/dim]")
 
-    console.print("\nRun 'ai-cli setup' to configure your API key.")
+    console.print("\n[dim]Commands:[/dim]")
+    console.print("  ai-cli setup              [dim]# Change API key[/dim]")
+    console.print("  ai-cli config -s          [dim]# Select model (interactive)[/dim]")
+    console.print("  ai-cli config -m MODEL    [dim]# Set model directly[/dim]")
 
 
 @app.command()
@@ -389,7 +595,6 @@ def create_repo(
             )
             raise typer.Exit(1) from None
 
-        # Create service and repository
         console.print(f"[yellow]📁 Creating repository '{name}'...[/yellow]")
 
         repo_service = GitHubRepoService()
@@ -453,7 +658,6 @@ def smart_commit_all(
             )
             raise typer.Exit(0) from None
 
-        # Display summary of changes
         console.print(f"\n[bold]Found {len(changes)} changed file(s):[/bold]")
         for change in changes:
             status_icon = {
@@ -469,11 +673,9 @@ def smart_commit_all(
             console.print("[yellow]ℹ️  Operation cancelled.[/yellow]")
             raise typer.Exit(0) from None
 
-        # Execute smart commit all
         console.print("\n[yellow]🤖 Analyzing and grouping files...[/yellow]")
         result = service.execute_smart_commit_all(auto_push=push)
 
-        # Display results
         console.print("\n[bold]📊 Commit Summary:[/bold]")
         for commit in result.commits:
             if commit.success:
@@ -486,7 +688,6 @@ def smart_commit_all(
             else:
                 console.print(f"\n[red]❌ {commit.folder}/[/red] - {commit.error}")
 
-        # Final summary
         console.print("\n" + "─" * 50)
         console.print(
             f"[bold]Total:[/bold] {result.total_files} files in {result.total_commits} commits"
