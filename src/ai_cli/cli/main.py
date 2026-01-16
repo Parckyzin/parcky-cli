@@ -22,7 +22,7 @@ from ..core.exceptions import (
 )
 from ai_cli.core.models import Repository
 from ai_cli.core.common.enums import RepositoryVisibility
-from ai_cli.infrastructure.ai_service import GeminiAIService
+from ai_cli.clients import get_ai_service
 from ai_cli.infrastructure.git_repository import GitRepository
 from ai_cli.infrastructure.pr_service import GitHubPRService
 from ai_cli.infrastructure.repo_service import GitHubRepoService
@@ -52,7 +52,7 @@ class CLIController:
     def _setup_services(self):
         """Setup all services."""
         self.git_repo = GitRepository(self.config.git)
-        self.ai_service = GeminiAIService(self.config.ai)
+        self.ai_service = get_ai_service(self.config.ai)
 
         try:
             self.pr_service = GitHubPRService(work_dir=self.git_repo.work_dir)
@@ -91,16 +91,13 @@ class CLIController:
             )
             console.print(panel)
 
-            # Confirm with user
             if not auto_confirm and not Confirm.ask("✅ Accept this message?"):
                 commit_msg = typer.prompt("📝 Enter your custom message")
 
-            # Create commit
             console.print("[yellow]📦 Creating commit...[/yellow]")
             self.smart_commit_service.create_commit(commit_msg)
             console.print("[bold green]✅ Commit created successfully![/bold green]")
 
-            # Push if requested
             if push:
                 current_branch = self.git_repo.get_current_branch()
                 console.print(
@@ -111,7 +108,6 @@ class CLIController:
                     "[bold green]✅ Changes pushed successfully![/bold green]"
                 )
 
-            # Create PR if requested
             if pr:
                 if not self.pr_service:
                     console.print(
@@ -123,7 +119,6 @@ class CLIController:
                 console.print("[yellow]📋 Generating pull request...[/yellow]")
                 pr_data = self.ai_service.generate_pull_request(diff, commit_msg)
 
-                # Display PR preview
                 pr_panel = Panel(
                     f"[bold]Title:[/bold] {pr_data.title}\n\n[bold]Description:[/bold]\n{pr_data.body}",
                     title="📋 Pull Request Preview",
@@ -174,7 +169,6 @@ class CLIController:
             raise typer.Exit(1) from None
 
 
-# Global controller instance
 cli_controller: Optional[CLIController] = None
 
 
@@ -270,13 +264,11 @@ def setup(
         # Create new file
         global_path.write_text(f"GEMINI_API_KEY={key}\n")
 
-    # Direct API key provided
     if api_key:
         save_api_key(api_key)
         console.print(f"[bold green]✅ API key saved to {global_path}[/bold green]")
         return
 
-    # Interactive setup
     console.print("[bold]🤖 AI CLI Setup[/bold]")
     console.print("=" * 40)
 
@@ -645,7 +637,7 @@ def smart_commit_all(
     try:
         config = AppConfig.load()
         git_repo = GitRepository(config.git)
-        ai_service = GeminiAIService(config.ai)
+        ai_service = get_ai_service(config.ai)
 
         service = SmartCommitAllService(git_repo=git_repo, ai_service=ai_service)
 
