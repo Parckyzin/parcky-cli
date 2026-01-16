@@ -1,0 +1,116 @@
+"""
+AI service implementation using Google Gemini with the new google.genai package.
+"""
+
+import re
+import time
+
+import google.genai as genai
+from google.genai.types import GenerateContentConfig
+
+from ai_cli.config.prompts import get_prompt
+from ai_cli.config.settings import AIConfig
+from ai_cli.core.exceptions import AIServiceError
+from ai_cli.core.interfaces import AIServiceInterface
+from ai_cli.core.models import GitDiff, PullRequest
+
+
+class GeminiAIService(AIServiceInterface):
+    """Google Gemini AI service implementation using the new google.genai package."""
+
+    MAX_RETRIES = 3
+    BASE_RETRY_DELAY = 5  # seconds
+
+    def __init__(self, config: AIConfig):
+        self.config = config
+        try:
+            self.client = genai.Client(api_key=config.api_key)
+        except Exception as e:
+            raise AIServiceError(f"Failed to initialize Gemini AI service: {e}") from e
+
+    def _extract_retry_delay(self, error_message: str) -> float:
+        """Extract retry delay from error message if available."""
+        match = re.search(r"retry in (\d+\.?\d*)s", error_message, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+        return self.BASE_RETRY_DELAY
+
+    def _generate_content(self, prompt: str, context: str) -> str:
+        """Generate content using the AI model with retry logic."""
+        full_prompt = f"{prompt}\n\nCONTEXT:\n{context}"
+
+        config = GenerateContentConfig(
+            temperature=self.config.temperature,
+            max_output_tokens=self.config.max_tokens,
+            system_instruction=self.config.system_instruction,
+        )
+
+        last_error = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.config.model_name, contents=full_prompt, config=config
+                )
+
+                if not response.text:
+                    raise AIServiceError("AI service returned empty response")
+
+                return response.text.strip()
+
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+
+                # Check if it's a rate limit error (429)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    retry_delay = self._extract_retry_delay(error_str)
+                    if attempt < self.MAX_RETRIES - 1:
+                        print(
+                            f"⏳ Rate limit hit. Waiting {retry_delay:.1f}s before retry ({attempt + 1}/{self.MAX_RETRIES})..."
+                        )
+                        time.sleep(retry_delay)
+                        continue
+
+                # For non-rate-limit errors, don't retry
+                break
+
+        raise AIServiceError(
+            f"Failed to generate AI content: {last_error}"
+        ) from last_error
+
+    def generate_commit_message(self, diff: GitDiff) -> str:
+        """Generate a commit message based on the diff."""
+        prompt = get_prompt("commit_message")
+        return self._generate_content(prompt, diff.content)
+
+    def generate_pull_request(self, diff: GitDiff, commit_msg: str) -> PullRequest:
+        """Generate a pull request title and description."""
+        prompt = get_prompt("pull_request")
+        context = f"Commit Message: {commit_msg}\n\nDiff:\n{diff.content}"
+        ai_response = self._generate_content(prompt, context)
+
+        return self._parse_pr_response(ai_response)
+
+    def _parse_pr_response(self, ai_response: str) -> PullRequest:
+        """Parse the AI response to extract title and body."""
+        lines = ai_response.split("\n")
+
+        title = ""
+        body_lines = []
+        found_body = False
+
+        for line in lines:
+            if line.startswith("Title:"):
+                title = line.replace("Title:", "").strip()
+            elif line.startswith("Body:"):
+                found_body = True
+            elif found_body:
+                body_lines.append(line)
+
+        if not title:
+            title = lines[0].strip()
+            body_lines = lines[1:]
+
+        body = "\n".join(body_lines).strip()
+
+        return PullRequest(title=title, body=body)
