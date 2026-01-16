@@ -20,14 +20,15 @@ from ..core.exceptions import (
     PullRequestError,
     RepositoryError,
 )
-from ..core.models import Repository, RepositoryVisibility
-from ..infrastructure.ai_service import GeminiAIService
-from ..infrastructure.git_repository import GitRepository
-from ..infrastructure.pr_service import GitHubPRService
-from ..infrastructure.repo_service import GitHubRepoService
-from ..services.create_pr_service import CreatePRService
-from ..services.smart_commit_all_service import SmartCommitAllService
-from ..services.smart_commit_service import SmartCommitService
+from ai_cli.core.models import Repository
+from ai_cli.core.common.enums import RepositoryVisibility
+from ai_cli.infrastructure.ai_service import GeminiAIService
+from ai_cli.infrastructure.git_repository import GitRepository
+from ai_cli.infrastructure.pr_service import GitHubPRService
+from ai_cli.infrastructure.repo_service import GitHubRepoService
+from ai_cli.services.create_pr_service import CreatePRService
+from ai_cli.services.smart_commit_all_service import SmartCommitAllService
+from ai_cli.services.smart_commit_service import SmartCommitService
 
 console = Console()
 app = typer.Typer(
