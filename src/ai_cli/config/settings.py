@@ -12,7 +12,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from ..core.exceptions import ConfigurationError
+from ai_cli.core.exceptions import ConfigurationError
+from ai_cli.core.common.enums import AvailableAiHosts
 
 
 def get_env_files() -> tuple[Path, ...]:
@@ -33,6 +34,10 @@ def get_env_files() -> tuple[Path, ...]:
 
 class AIConfig(BaseSettings):
     """AI service configuration."""
+    
+    model_host: AvailableAiHosts = Field(
+        default=AvailableAiHosts.GOOGLE, description="AI model host service"
+    )
 
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
@@ -42,7 +47,7 @@ class AIConfig(BaseSettings):
 
     api_key: str = Field(
         ...,
-        description="Google Gemini API key",
+        description="API key for the AI service",
         validation_alias=AliasChoices("GEMINI_API_KEY", "gemini_api_key"),
     )
     model_name: str = Field(
