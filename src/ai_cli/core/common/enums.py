@@ -23,3 +23,13 @@ class CommitType(StrEnum):
     CI = "ci"
     PERF = "perf"
     REVERT = "revert"
+    
+    
+class AvailableAiHosts(StrEnum):
+    """Available AI service hosts."""
+
+    OPENAI = "openai"
+    AZURE_OPENAI = "azure_openai"
+    ANTHROPIC = "anthropic"
+    COHERE = "cohere"
+    GOOGLE = "google"
