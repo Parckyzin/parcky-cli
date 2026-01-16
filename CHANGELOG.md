@@ -27,8 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration loading with proper error handling
 - Environment variable validation and defaults
 
-## [0.1.0] - 2026-01-14
-
 ### Added
 - Complete project restructuring with clean architecture
 - Domain-driven design with separated layers:
@@ -72,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created development dependencies group
 - Added example environment configuration
 
-## [0.0.1] - Initial Version
+## [2026.01.a02] - Initial Version
 
 ### Added
 - Basic AI-powered commit message generation
