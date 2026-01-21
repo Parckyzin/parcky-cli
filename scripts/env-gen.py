@@ -2,8 +2,7 @@
 """
 Environment file generator for AI CLI.
 
-Generates a .env file with default values from the Pydantic settings fields.
-This makes it easy for users to see all available configuration options.
+Generates a .env file with default values for provider-agnostic configuration.
 """
 
 import sys
@@ -14,46 +13,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 
-def get_field_info(model_class, env_prefix: str = "") -> list[dict]:
-    """Extract field information from a Pydantic model."""
-    from pydantic_core import PydanticUndefined
-
-    fields_info = []
-
-    for field_name, field_info in model_class.model_fields.items():
-        env_name = field_name.upper()
-
-        if field_info.validation_alias:
-            env_name = str(field_info.validation_alias)
-        elif env_prefix:
-            env_name = f"{env_prefix}{field_name.upper()}"
-
-        default = field_info.default
-        is_required = default is PydanticUndefined
-
-        if is_required:
-            default = ""
-        elif default is None:
-            default = ""
-
-        description = field_info.description or ""
-
-        fields_info.append(
-            {
-                "env_name": env_name,
-                "default": default,
-                "description": description,
-                "required": is_required,
-            }
-        )
-
-    return fields_info
-
-
 def generate_env_content(api_key: str = "") -> str:
-    """Generate the .env file content from Pydantic settings."""
-    from ai_cli.config.settings import AIConfig, GitConfig
-
+    """Generate the .env file content."""
     lines = [
         "# ============================================",
         "# AI CLI Configuration",
@@ -65,49 +26,55 @@ def generate_env_content(api_key: str = "") -> str:
         "# --------------------------------------------",
     ]
 
-    ai_fields = get_field_info(AIConfig)
-    for field in ai_fields:
-        if field["description"]:
-            lines.append(f"# {field['description']}")
-        if field["required"]:
-            lines.append("# (Required)")
+    ai_entries = [
+        ("AI_HOST", "google", "AI provider host (google, openai, anthropic, local)"),
+        ("AI_MODEL", "gemini-2.0-flash", "AI model name (provider-specific)"),
+        ("AI_API_KEY", api_key, "API key for the selected provider"),
+        ("AI_BASE_URL", "", "Base URL for local or gateway providers"),
+        ("AI_TEMPERATURE", "0.7", "AI temperature (0.0-2.0)"),
+        ("AI_MAX_TOKENS", "", "Maximum tokens for AI response"),
+        ("AI_CACHE_ENABLED", "true", "Enable AI response cache"),
+        ("AI_MAX_CONTEXT_CHARS", "35000", "Maximum context size (characters)"),
+    ]
 
-        # Use provided API key for GEMINI_API_KEY field
-        if field["env_name"] == "GEMINI_API_KEY" and api_key:
-            value = api_key
-        else:
-            value = field["default"]
-
-        lines.append(f"{field['env_name']}={value}")
+    for key, default, description in ai_entries:
+        lines.append(f"# {description}")
+        value = default if default is not None else ""
+        lines.append(f"{key}={value}")
         lines.append("")
+
+    lines.append("# --------------------------------------------")
+    lines.append("# Legacy aliases (optional)")
+    lines.append("# --------------------------------------------")
+    lines.append("# GEMINI_API_KEY=  # Alias for AI_API_KEY when AI_HOST=google")
+    lines.append("# MODEL_NAME=      # Alias for AI_MODEL")
+    lines.append("")
 
     lines.append("# --------------------------------------------")
     lines.append("# Git Configuration")
     lines.append("# --------------------------------------------")
 
-    git_fields = get_field_info(GitConfig, env_prefix="GIT_")
-    for field in git_fields:
-        if field["description"]:
-            lines.append(f"# {field['description']}")
-        lines.append(f"{field['env_name']}={field['default']}")
+    git_entries = [
+        ("GIT_MAX_DIFF_SIZE", "10000", "Maximum diff size for AI analysis"),
+        ("GIT_DEFAULT_BRANCH", "main", "Default git branch name"),
+        ("GIT_AUTO_PUSH", "true", "Auto push commits by default"),
+    ]
+    for key, default, description in git_entries:
+        lines.append(f"# {description}")
+        lines.append(f"{key}={default}")
         lines.append("")
 
     lines.append("# --------------------------------------------")
     lines.append("# Application Configuration")
     lines.append("# --------------------------------------------")
 
-    app_fields = [
-        {"env_name": "DEBUG", "default": "false", "description": "Enable debug mode"},
-        {
-            "env_name": "LOG_LEVEL",
-            "default": "INFO",
-            "description": "Logging level (DEBUG, INFO, WARNING, ERROR)",
-        },
+    app_entries = [
+        ("DEBUG", "false", "Enable debug mode"),
+        ("LOG_LEVEL", "INFO", "Logging level (DEBUG, INFO, WARNING, ERROR)"),
     ]
-    for field in app_fields:
-        if field["description"]:
-            lines.append(f"# {field['description']}")
-        lines.append(f"{field['env_name']}={field['default']}")
+    for key, default, description in app_entries:
+        lines.append(f"# {description}")
+        lines.append(f"{key}={default}")
         lines.append("")
 
     return "\n".join(lines)
@@ -115,45 +82,32 @@ def generate_env_content(api_key: str = "") -> str:
 
 def get_current_api_key(config_path: Path) -> str:
     """Read the current API key from an existing config file."""
+    from ai_cli.config.writer import read_env_value
+
     if not config_path.exists():
         return ""
 
-    try:
-        content = config_path.read_text()
-        for line in content.split("\n"):
-            if line.startswith("GEMINI_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-    return ""
+    return read_env_value(config_path, "AI_API_KEY") or read_env_value(
+        config_path, "GEMINI_API_KEY"
+    )
 
 
 def set_api_key(api_key: str, global_config: bool = True) -> None:
     """Set or update the API key in the config file."""
+    from ai_cli.config.writer import set_env_value
+    from ai_cli.config.paths import get_global_env_path, get_local_env_path
+
     if global_config:
-        config_path = Path.home() / ".config" / "ai-cli" / ".env"
+        config_path = get_global_env_path()
         config_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        config_path = Path(".env")
+        config_path = get_local_env_path()
 
-    # If file exists, update just the API key line
     if config_path.exists():
-        content = config_path.read_text()
-        lines = content.split("\n")
-        updated = False
+        set_env_value(config_path, "AI_API_KEY", api_key)
+        print(f"✅ Updated API key in {config_path}")
+        return
 
-        for i, line in enumerate(lines):
-            if line.startswith("GEMINI_API_KEY="):
-                lines[i] = f"GEMINI_API_KEY={api_key}"
-                updated = True
-                break
-
-        if updated:
-            config_path.write_text("\n".join(lines))
-            print(f"✅ Updated API key in {config_path}")
-            return
-
-    # If file doesn't exist or key not found, generate new file
     content = generate_env_content(api_key)
     config_path.write_text(content)
     print(f"✅ Generated {config_path} with API key")
@@ -165,7 +119,9 @@ def interactive_setup() -> None:
     print("=" * 40)
     print()
 
-    global_path = Path.home() / ".config" / "ai-cli" / ".env"
+    from ai_cli.config.paths import get_global_env_path
+
+    global_path = get_global_env_path()
     current_key = get_current_api_key(global_path)
 
     if current_key:
@@ -178,10 +134,10 @@ def interactive_setup() -> None:
             return
 
     print()
-    print("Get your API key from: https://makersuite.google.com/app/apikey")
+    print("Get your API key from your provider.")
     print()
 
-    api_key = input("Enter your GEMINI_API_KEY: ").strip()
+    api_key = input("Enter your AI_API_KEY: ").strip()
 
     if not api_key:
         print("❌ No API key provided. Aborted.")
@@ -226,7 +182,7 @@ def main():
     parser.add_argument(
         "--api-key",
         type=str,
-        help="Set the GEMINI_API_KEY directly",
+        help="Set the AI_API_KEY directly",
     )
     parser.add_argument(
         "--setup",
@@ -250,7 +206,9 @@ def main():
     content = generate_env_content()
 
     if args.global_config:
-        output_path = Path.home() / ".config" / "ai-cli" / ".env"
+        from ai_cli.config.paths import get_global_env_path
+
+        output_path = get_global_env_path()
         output_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path(args.output)
@@ -267,9 +225,8 @@ def main():
 
     output_path.write_text(content)
     print(f"✅ Generated {output_path}")
-    print(f"📝 Edit the file and set your GEMINI_API_KEY")
+    print("📝 Edit the file and set your AI_API_KEY")
 
 
 if __name__ == "__main__":
     main()
-

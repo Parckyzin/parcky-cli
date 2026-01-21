@@ -33,3 +33,4 @@ class AvailableAiHosts(StrEnum):
     ANTHROPIC = "anthropic"
     COHERE = "cohere"
     GOOGLE = "google"
+    LOCAL = "local"

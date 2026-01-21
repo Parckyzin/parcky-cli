@@ -3,34 +3,10 @@ Service for smart commit all operations - commits all changes grouped by folder/
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
 
 from ..config.prompts import get_prompt
 from ..core.interfaces import AIServiceInterface, GitRepositoryInterface
-from ..core.models import FileChange, FileGroup
-
-
-@dataclass
-class CommitResult:
-    """Result of a single commit operation."""
-
-    folder: str
-    files: list[str]
-    commit_message: str
-    success: bool
-    error: str | None = None
-
-
-@dataclass
-class SmartCommitAllResult:
-    """Result of the smart commit all operation."""
-
-    total_files: int
-    total_commits: int
-    successful_commits: int
-    failed_commits: int
-    commits: list[CommitResult]
-    pushed: bool = False
+from ..core.models import CommitResult, FileChange, FileGroup, SmartCommitAllResult
 
 
 class SmartCommitAllService:
@@ -48,14 +24,22 @@ class SmartCommitAllService:
         """Get all changed files in the repository."""
         return self.git_repo.get_all_changes()
 
+    def _sort_changes(self, changes: list[FileChange]) -> list[FileChange]:
+        """Sort file changes deterministically."""
+        return sorted(changes, key=lambda change: (change.folder, change.path))
+
+    def _sort_groups(self, groups: list[FileGroup]) -> list[FileGroup]:
+        """Sort groups deterministically."""
+        return sorted(groups, key=lambda group: group.group_key)
+
     def group_files_by_folder(
         self, changes: list[FileChange]
     ) -> dict[str, list[FileChange]]:
         """Group changed files by their folder."""
         groups: dict[str, list[FileChange]] = defaultdict(list)
-        for change in changes:
+        for change in self._sort_changes(changes):
             groups[change.folder].append(change)
-        return dict(groups)
+        return {folder: groups[folder] for folder in sorted(groups)}
 
     def analyze_file_correlation(
         self, files: list[FileChange], folder: str
@@ -65,14 +49,23 @@ class SmartCommitAllService:
         Uses AI to determine which files should be committed together.
         """
         if len(files) <= 1:
-            return [FileGroup(files=files, folder=folder)]
+            return [
+                FileGroup(
+                    files=self._sort_changes(files),
+                    folder=folder,
+                    explanation="Single file change.",
+                )
+            ]
 
-        file_paths = [f.path for f in files]
+        ordered_files = self._sort_changes(files)
+        file_paths = [f.path for f in ordered_files]
         diff = self.git_repo.get_diff_for_files(file_paths)
 
         # Get prompt template and fill in variables
         prompt_template = get_prompt("file_correlation")
-        files_list = "\n".join(f"- {f.path} ({f.status})" for f in files)
+        files_list = "\n".join(
+            f"- {f.path} ({f.status})" for f in ordered_files
+        )
         diff_content = diff.content[:3000] if diff.content else "No diff available"
 
         prompt = prompt_template.format(
@@ -83,11 +76,17 @@ class SmartCommitAllService:
 
         try:
             response = self.ai_service._generate_content(prompt, "")
-            groups = self._parse_group_response(response, files, folder)
-            return groups
+            groups = self._parse_group_response(response, ordered_files, folder)
+            return self._sort_groups(groups)
         except Exception:
             # If AI fails, fall back to single group
-            return [FileGroup(files=files, folder=folder)]
+            return [
+                FileGroup(
+                    files=ordered_files,
+                    folder=folder,
+                    explanation="AI unavailable; grouped by folder.",
+                )
+            ]
 
     def _parse_group_response(
         self, response: str, files: list[FileChange], folder: str
@@ -121,14 +120,36 @@ class SmartCommitAllService:
                         assigned_files.add(full_path)
 
             if group_files:
-                groups.append(FileGroup(files=group_files, folder=folder))
+                ordered_group_files = self._sort_changes(group_files)
+                groups.append(
+                    FileGroup(
+                        files=ordered_group_files,
+                        folder=folder,
+                        explanation="Grouped by AI correlation within the folder.",
+                    )
+                )
 
         # Add any unassigned files as individual groups
-        for file in files:
+        for file in self._sort_changes(files):
             if file.path not in assigned_files:
-                groups.append(FileGroup(files=[file], folder=folder))
+                groups.append(
+                    FileGroup(
+                        files=[file],
+                        folder=folder,
+                        explanation="No correlation found; kept separate.",
+                    )
+                )
 
-        return groups if groups else [FileGroup(files=files, folder=folder)]
+        if not groups:
+            return [
+                FileGroup(
+                    files=self._sort_changes(files),
+                    folder=folder,
+                    explanation="Grouped by folder (no correlation output).",
+                )
+            ]
+
+        return groups
 
     def generate_commit_message_for_group(self, group: FileGroup) -> str:
         """Generate a commit message for a file group."""
@@ -138,35 +159,72 @@ class SmartCommitAllService:
         group.commit_message = commit_message
         return commit_message
 
-    def commit_group(self, group: FileGroup) -> CommitResult:
+    def commit_group(self, group: FileGroup, *, dry_run: bool) -> CommitResult:
         """Stage and commit a file group."""
         try:
-            # Stage the files
-            self.git_repo.stage_files(group.file_paths)
-
-            # Generate commit message if not already done
             if not group.commit_message:
                 self.generate_commit_message_for_group(group)
+
+            if dry_run:
+                return CommitResult(
+                    group=group,
+                    commit_message=group.commit_message,
+                    status="planned",
+                )
+
+            # Stage the files
+            self.git_repo.stage_files(group.file_paths)
 
             # Create the commit
             self.git_repo.commit(group.commit_message)
 
             return CommitResult(
-                folder=group.folder,
-                files=group.file_paths,
+                group=group,
                 commit_message=group.commit_message,
-                success=True,
+                status="success",
             )
         except Exception as e:
             return CommitResult(
-                folder=group.folder,
-                files=group.file_paths,
+                group=group,
                 commit_message=group.commit_message or "",
-                success=False,
+                status="failed",
                 error=str(e),
             )
 
-    def execute_smart_commit_all(self, auto_push: bool = True) -> SmartCommitAllResult:
+    def plan_smart_commit_all(self) -> SmartCommitAllResult:
+        """Build a deterministic plan for smart commit all."""
+        changes = self.get_all_changes()
+        if not changes:
+            return SmartCommitAllResult()
+
+        ordered_changes = self._sort_changes(changes)
+        folder_groups = self.group_files_by_folder(ordered_changes)
+
+        all_groups: list[FileGroup] = []
+        for folder, files in folder_groups.items():
+            correlated_groups = self.analyze_file_correlation(files, folder)
+            all_groups.extend(correlated_groups)
+
+        all_groups = self._sort_groups(all_groups)
+
+        commit_results: list[CommitResult] = []
+        for group in all_groups:
+            commit_results.append(self.commit_group(group, dry_run=True))
+
+        return SmartCommitAllResult(
+            changes=ordered_changes,
+            groups=all_groups,
+            commit_results=commit_results,
+            pushed=False,
+            dry_run=True,
+        )
+
+    def execute_smart_commit_all(
+        self,
+        auto_push: bool = True,
+        dry_run: bool = False,
+        plan: SmartCommitAllResult | None = None,
+    ) -> SmartCommitAllResult:
         """
         Execute the smart commit all workflow.
 
@@ -177,39 +235,19 @@ class SmartCommitAllService:
         5. Create commits for each group
         6. Optionally push all changes
         """
-        # Get all changes
-        changes = self.get_all_changes()
-        if not changes:
-            return SmartCommitAllResult(
-                total_files=0,
-                total_commits=0,
-                successful_commits=0,
-                failed_commits=0,
-                commits=[],
-            )
+        plan_result = plan or self.plan_smart_commit_all()
+
+        if dry_run or plan_result.total_files == 0:
+            return plan_result
 
         self.git_repo.unstage_all()
 
-        folder_groups = self.group_files_by_folder(changes)
-
-        all_groups: list[FileGroup] = []
-        for folder, files in folder_groups.items():
-            correlated_groups = self.analyze_file_correlation(files, folder)
-            all_groups.extend(correlated_groups)
-
-        # Commit each group
         commit_results: list[CommitResult] = []
-        for group in all_groups:
-            result = self.commit_group(group)
-            commit_results.append(result)
+        for group in plan_result.groups:
+            commit_results.append(self.commit_group(group, dry_run=False))
 
-        # Calculate stats
-        successful = sum(1 for r in commit_results if r.success)
-        failed = sum(1 for r in commit_results if not r.success)
-
-        # Push if requested and there were successful commits
         pushed = False
-        if auto_push and successful > 0:
+        if auto_push and any(r.status == "success" for r in commit_results):
             try:
                 branch = self.git_repo.get_current_branch()
                 self.git_repo.push(branch.name)
@@ -218,10 +256,9 @@ class SmartCommitAllService:
                 pushed = False
 
         return SmartCommitAllResult(
-            total_files=len(changes),
-            total_commits=len(commit_results),
-            successful_commits=successful,
-            failed_commits=failed,
-            commits=commit_results,
+            changes=plan_result.changes,
+            groups=plan_result.groups,
+            commit_results=commit_results,
             pushed=pushed,
+            dry_run=False,
         )

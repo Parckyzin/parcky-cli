@@ -6,8 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.ai_cli.core.exceptions import NoStagedChangesError
-from src.ai_cli.services.smart_commit_service import SmartCommitService
+from ai_cli.core.exceptions import AIServiceError, NoStagedChangesError
+from ai_cli.core.models import GitDiff
+from ai_cli.services.smart_commit_service import SmartCommitService
 
 
 class TestSmartCommitService:
@@ -25,6 +26,7 @@ class TestSmartCommitService:
     def test_generate_commit_message(self, smart_commit_service, sample_git_diff):
         """Test generating commit message."""
         expected_message = "feat: add new feature"
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             expected_message
         )
@@ -32,9 +34,30 @@ class TestSmartCommitService:
         result = smart_commit_service.generate_commit_message(sample_git_diff)
 
         assert result == expected_message
-        smart_commit_service.ai_service.generate_commit_message.assert_called_once_with(
+        smart_commit_service.git_repo.build_commit_context.assert_called_once_with(
             sample_git_diff
         )
+        expected_diff = GitDiff(
+            content="context", is_truncated=sample_git_diff.is_truncated
+        )
+        smart_commit_service.ai_service.generate_commit_message.assert_called_once_with(
+            expected_diff
+        )
+
+    def test_generate_commit_message_fallback(self, smart_commit_service, sample_git_diff):
+        """Test fallback when AI fails."""
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
+        smart_commit_service.ai_service.generate_commit_message.side_effect = (
+            AIServiceError("boom")
+        )
+        smart_commit_service.git_repo.get_staged_file_paths.return_value = [
+            "src/app.py",
+            "src/utils.py",
+        ]
+
+        result = smart_commit_service.generate_commit_message(sample_git_diff)
+
+        assert result == "chore: update 2 files"
 
     def test_create_commit(self, smart_commit_service):
         """Test creating commit."""
@@ -112,6 +135,7 @@ class TestSmartCommitService:
         """Test successful smart commit execution."""
         # Setup mocks
         smart_commit_service.git_repo.get_staged_diff.return_value = sample_git_diff
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             "feat: add feature"
         )

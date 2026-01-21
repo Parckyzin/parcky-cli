@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from . import paths
 
 class PromptsLoader:
     """Load and manage prompts from JSON file."""
@@ -22,21 +23,21 @@ class PromptsLoader:
 
     def _get_prompts_paths(self) -> list[Path]:
         """Get list of possible prompts.json locations in priority order."""
-        paths = []
+        search_paths: list[Path] = []
 
-        local_prompts = Path("prompts.json")
+        local_prompts = paths.get_local_prompts_path()
         if local_prompts.exists():
-            paths.append(local_prompts)
+            search_paths.append(local_prompts)
 
-        global_prompts = Path.home() / ".config" / "ai-cli" / "prompts.json"
+        global_prompts = paths.get_global_prompts_path()
         if global_prompts.exists():
-            paths.append(global_prompts)
+            search_paths.append(global_prompts)
 
-        package_prompts = Path(__file__).parent.parent.parent.parent / "prompts.json"
+        package_prompts = paths.get_package_prompts_path()
         if package_prompts.exists():
-            paths.append(package_prompts)
+            search_paths.append(package_prompts)
 
-        return paths
+        return search_paths
 
     def _load_prompts(self) -> None:
         """Load prompts from JSON file."""
@@ -72,17 +73,19 @@ class PromptsLoader:
             },
             "pull_request": {
                 "prompt": (
-                    "Create a title and description for a Pull Request based on the changes.\n"
-                    "The format must be Markdown.\n\n"
-                    "Required structure:\n"
-                    "Title: [Short and clear title suggestion]\n"
-                    "Body:\n"
+                    "Create a Pull Request title and body using ALL context sections provided.\n"
+                    "Use commits, files list, stats, and curated patches to ensure coverage.\n"
+                    "Do NOT rely only on patches.\n\n"
+                    "Output format:\n"
+                    "First line: a short, clear title (plain text)\n"
+                    "Second line: blank\n"
+                    "Then a Markdown body with sections:\n"
                     "## What was done\n"
-                    "- List the main changes clearly\n\n"
+                    "- Summarize the full scope of changes\n\n"
                     "## Why it was done\n"
-                    "- Explain the motivation\n\n"
+                    "- Explain motivation/context\n\n"
                     "## How to test\n"
-                    "- Provide steps to validate"
+                    "- Provide validation steps based on the changes"
                 )
             },
             "file_correlation": {
