@@ -72,6 +72,9 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     cache_enabled = _clean(normalized.get("AI_CACHE_ENABLED"))
     if cache_enabled is not None:
         ai_values["cache_enabled"] = cache_enabled
+    max_context_chars = _clean(normalized.get("AI_MAX_CONTEXT_CHARS"))
+    if max_context_chars is not None:
+        ai_values["max_context_chars"] = max_context_chars
 
     git_values: dict[str, Any] = {}
     git_max_diff_size = _clean(normalized.get("GIT_MAX_DIFF_SIZE"))

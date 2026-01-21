@@ -48,6 +48,11 @@ class AIConfig(BaseModel):
         default=True,
         description="Enable AI response cache",
     )
+    max_context_chars: int = Field(
+        default=35000,
+        gt=0,
+        description="Maximum context size for AI prompts (characters)",
+    )
 
     @model_validator(mode="after")
     def validate_provider_settings(self):
