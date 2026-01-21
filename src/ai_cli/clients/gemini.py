@@ -8,6 +8,7 @@ import time
 import google.genai as genai
 from google.genai.types import GenerateContentConfig
 
+from ai_cli.config.cache import get_cache
 from ai_cli.config.prompts import get_prompt
 from ai_cli.config.settings import AIConfig
 from ai_cli.core.exceptions import AIServiceError
@@ -26,7 +27,13 @@ class GeminiAIService(AIServiceInterface):
         try:
             self.client = genai.Client(api_key=config.api_key)
         except Exception as e:
-            raise AIServiceError(f"Failed to initialize Gemini AI service: {e}") from e
+            raise AIServiceError(
+                f"Failed to initialize Gemini AI service: {e}",
+                user_message=(
+                    "Failed to initialize the AI client. Check your AI_API_KEY "
+                    "and try again."
+                ),
+            ) from e
 
     def _extract_retry_delay(self, error_message: str) -> float:
         """Extract retry delay from error message if available."""
@@ -38,6 +45,19 @@ class GeminiAIService(AIServiceInterface):
     def _generate_content(self, prompt: str, context: str) -> str:
         """Generate content using the AI model with retry logic."""
         full_prompt = f"{prompt}\n\nCONTEXT:\n{context}"
+        cache = get_cache()
+        cache_key: str | None = None
+        if self.config.cache_enabled and cache.is_safe_for_cache(prompt, context):
+            cache_key = cache.make_ai_cache_key(
+                self.config.model_name,
+                prompt,
+                context,
+                self.config.temperature,
+                self.config.max_tokens,
+            )
+            cached = cache.get_ai_response(cache_key)
+            if cached:
+                return cached
 
         config = GenerateContentConfig(
             temperature=self.config.temperature,
@@ -53,9 +73,22 @@ class GeminiAIService(AIServiceInterface):
                 )
 
                 if not response.text:
-                    raise AIServiceError("AI service returned empty response")
+                    raise AIServiceError(
+                        "AI service returned empty response",
+                        user_message=(
+                            "The AI service returned an empty response. Try again "
+                            "or adjust your prompt settings."
+                        ),
+                    )
 
-                return response.text.strip()
+                text_response = response.text.strip()
+                if (
+                    self.config.cache_enabled
+                    and cache_key
+                    and cache.is_safe_for_cache(text_response)
+                ):
+                    cache.set_ai_response(cache_key, text_response)
+                return text_response
 
             except Exception as e:
                 last_error = e
@@ -75,7 +108,11 @@ class GeminiAIService(AIServiceInterface):
                 break
 
         raise AIServiceError(
-            f"Failed to generate AI content: {last_error}"
+            f"Failed to generate AI content: {last_error}",
+            user_message=(
+                "Failed to generate AI content. Check your network connection "
+                "or API credentials and try again."
+            ),
         ) from last_error
 
     def generate_commit_message(self, diff: GitDiff) -> str:
