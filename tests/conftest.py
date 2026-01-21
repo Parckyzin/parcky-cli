@@ -6,11 +6,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.ai_cli.config.settings import AIConfig, AppConfig, GitConfig
-from src.ai_cli.core.models import GitBranch, GitDiff, PullRequest
-from ai_cli.clients.ai_service import GeminiAIService
-from src.ai_cli.infrastructure.git_repository import GitRepository
-from src.ai_cli.services.smart_commit_service import SmartCommitService
+from ai_cli.config.settings import AIConfig, AppConfig, GitConfig
+from ai_cli.core.models import GitBranch, GitDiff, PullRequest
+from ai_cli.clients.gemini import GeminiAIService
+from ai_cli.infrastructure.git_repository import GitRepository
+from ai_cli.services.smart_commit_service import SmartCommitService
 
 
 @pytest.fixture
