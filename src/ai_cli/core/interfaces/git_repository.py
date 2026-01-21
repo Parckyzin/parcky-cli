@@ -42,6 +42,21 @@ class GitRepositoryInterface(ABC):
         pass
 
     @abstractmethod
+    def get_staged_file_paths(self) -> list[str]:
+        """Get list of staged file paths."""
+        pass
+
+    @abstractmethod
+    def build_ai_context(
+        self,
+        diff: GitDiff,
+        max_files: int = 20,
+        max_example_lines: int = 120,
+    ) -> str:
+        """Build a structured, size-limited context for AI."""
+        pass
+
+    @abstractmethod
     def unstage_all(self) -> bool:
         """Unstage all staged files."""
         pass
