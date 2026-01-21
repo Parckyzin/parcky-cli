@@ -34,6 +34,7 @@ def generate_env_content(api_key: str = "") -> str:
         ("AI_TEMPERATURE", "0.7", "AI temperature (0.0-2.0)"),
         ("AI_MAX_TOKENS", "", "Maximum tokens for AI response"),
         ("AI_CACHE_ENABLED", "true", "Enable AI response cache"),
+        ("AI_MAX_CONTEXT_CHARS", "35000", "Maximum context size (characters)"),
     ]
 
     for key, default, description in ai_entries:
