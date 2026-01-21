@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 from ..core.exceptions import AIServiceError, GitError, PullRequestError
 from ..core.interfaces import AIServiceInterface, PullRequestServiceInterface
-from ..core.models import GitDiff, PullRequest
+from ..core.models import GitDiff, PRDiffStats, PRFileChange, PullRequest
 from ..infrastructure.git_repository import GitRepository
+from .pr_context_builder import build_pr_context
 
 
 @dataclass
@@ -18,7 +19,8 @@ class BranchInfo:
     base_branch: str
     commits: list[str]
     files_changed: list[str]
-    diff: GitDiff
+    name_status: list[PRFileChange]
+    diff_stats: PRDiffStats
 
 
 @dataclass
@@ -39,10 +41,12 @@ class CreatePRService:
         git_repo: GitRepository,
         ai_service: AIServiceInterface,
         pr_service: PullRequestServiceInterface,
+        max_context_chars: int = 35000,
     ):
         self.git_repo = git_repo
         self.ai_service = ai_service
         self.pr_service = pr_service
+        self.max_context_chars = max_context_chars
 
     def get_branch_info(self, base_branch: str | None = None) -> BranchInfo:
         """Gather information about the current branch."""
@@ -62,8 +66,9 @@ class CreatePRService:
             )
 
         commits = self.git_repo.get_branch_commits(base_branch)
-        files_changed = self.git_repo.get_branch_files_changed(base_branch)
-        diff = self.git_repo.get_branch_diff(base_branch)
+        name_status = self.git_repo.get_branch_name_status(base_branch)
+        files_changed = [change.path for change in name_status]
+        diff_stats = self.git_repo.get_branch_diff_stats(base_branch)
 
         if not commits and not files_changed:
             raise GitError(
@@ -80,7 +85,8 @@ class CreatePRService:
             base_branch=base_branch,
             commits=commits,
             files_changed=files_changed,
-            diff=diff,
+            name_status=name_status,
+            diff_stats=diff_stats,
         )
 
     def generate_pr_content(self, branch_info: BranchInfo) -> PullRequest:
@@ -90,10 +96,21 @@ class CreatePRService:
         if len(branch_info.commits) > 5:
             commit_summary += f" (+{len(branch_info.commits) - 5} more)"
 
-        ai_context = self.git_repo.build_ai_context(branch_info.diff)
+        pr_context = build_pr_context(
+            git_repo=self.git_repo,
+            base_branch=branch_info.base_branch,
+            current_branch=branch_info.name,
+            commits=branch_info.commits,
+            files_changed=branch_info.name_status,
+            diff_stats=branch_info.diff_stats,
+            max_context_chars=self.max_context_chars,
+        )
+        ai_context = self.git_repo.build_ai_context(
+            pr_context, max_context_chars=self.max_context_chars
+        )
         ai_diff = GitDiff(
             content=ai_context,
-            is_truncated=branch_info.diff.is_truncated,
+            is_truncated=pr_context.is_truncated,
         )
         try:
             return self.ai_service.generate_pull_request(ai_diff, commit_summary)
