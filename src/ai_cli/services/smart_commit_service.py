@@ -4,6 +4,7 @@ Main service orchestrating the smart commit workflow.
 
 from typing import Optional
 
+from ..core.exceptions import AIServiceError
 from ..core.interfaces import (
     AIServiceInterface,
     GitRepositoryInterface,
@@ -31,7 +32,25 @@ class SmartCommitService:
 
     def generate_commit_message(self, diff: GitDiff) -> str:
         """Generate AI-powered commit message."""
-        return self.ai_service.generate_commit_message(diff)
+        ai_context = self.git_repo.build_ai_context(diff)
+        ai_diff = GitDiff(content=ai_context, is_truncated=diff.is_truncated)
+        try:
+            return self.ai_service.generate_commit_message(ai_diff)
+        except AIServiceError:
+            return self._fallback_commit_message()
+
+    def _fallback_commit_message(self) -> str:
+        """Create a deterministic fallback commit message."""
+        try:
+            files = self.git_repo.get_staged_file_paths()
+        except Exception:
+            return "chore: update files"
+        if not files:
+            return "chore: update files"
+        if len(files) == 1:
+            filename = files[0].split("/")[-1]
+            return f"chore: update {filename}"
+        return f"chore: update {len(files)} files"
 
     def create_commit(self, message: str) -> bool:
         """Create git commit with the provided message."""
