@@ -1,6 +1,13 @@
 from abc import ABC, abstractmethod
 
-from ai_cli.core.models import FileChange, GitBranch, GitDiff
+from ai_cli.core.models import (
+    FileChange,
+    GitBranch,
+    GitDiff,
+    PRContext,
+    PRDiffStats,
+    PRFileChange,
+)
 
 
 class GitRepositoryInterface(ABC):
@@ -47,13 +54,37 @@ class GitRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    def build_ai_context(
+    def get_branch_name_status(
+        self, base_branch: str | None = None
+    ) -> list[PRFileChange]:
+        """Get name-status list for branch changes."""
+        pass
+
+    @abstractmethod
+    def get_branch_diff_stats(self, base_branch: str | None = None) -> PRDiffStats:
+        """Get diff stats for branch changes."""
+        pass
+
+    @abstractmethod
+    def get_branch_patch(self, base_branch: str, file_path: str) -> str:
+        """Get diff patch for a specific file."""
+        pass
+
+    @abstractmethod
+    def build_commit_context(
         self,
         diff: GitDiff,
         max_files: int = 20,
         max_example_lines: int = 120,
     ) -> str:
-        """Build a structured, size-limited context for AI."""
+        """Build a structured, size-limited commit context for AI."""
+        pass
+
+    @abstractmethod
+    def build_ai_context(
+        self, pr_context: PRContext, max_context_chars: int = 35000
+    ) -> str:
+        """Build a structured, size-limited PR context for AI."""
         pass
 
     @abstractmethod
