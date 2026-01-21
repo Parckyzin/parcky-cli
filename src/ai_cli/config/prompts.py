@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from . import paths
 
 class PromptsLoader:
     """Load and manage prompts from JSON file."""
@@ -22,21 +23,21 @@ class PromptsLoader:
 
     def _get_prompts_paths(self) -> list[Path]:
         """Get list of possible prompts.json locations in priority order."""
-        paths = []
+        search_paths: list[Path] = []
 
-        local_prompts = Path("prompts.json")
+        local_prompts = paths.get_local_prompts_path()
         if local_prompts.exists():
-            paths.append(local_prompts)
+            search_paths.append(local_prompts)
 
-        global_prompts = Path.home() / ".config" / "ai-cli" / "prompts.json"
+        global_prompts = paths.get_global_prompts_path()
         if global_prompts.exists():
-            paths.append(global_prompts)
+            search_paths.append(global_prompts)
 
-        package_prompts = Path(__file__).parent.parent.parent.parent / "prompts.json"
+        package_prompts = paths.get_package_prompts_path()
         if package_prompts.exists():
-            paths.append(package_prompts)
+            search_paths.append(package_prompts)
 
-        return paths
+        return search_paths
 
     def _load_prompts(self) -> None:
         """Load prompts from JSON file."""
