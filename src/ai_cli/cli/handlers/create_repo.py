@@ -65,7 +65,9 @@ def register(app: typer.Typer) -> None:
 
             url = repo_service.create_repository(repo)
 
-            console.print("[bold green]✅ Repository created successfully![/bold green]")
+            console.print(
+                "[bold green]✅ Repository created successfully![/bold green]"
+            )
             console.print(f"[blue]🔗 URL: {url}[/blue]")
 
         except AICliError as exc:

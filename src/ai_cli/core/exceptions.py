@@ -26,9 +26,7 @@ class AICliError(Exception):
     ) -> None:
         super().__init__(message)
         self.user_message: str = user_message or message
-        self.exit_code: int = (
-            exit_code if exit_code is not None else self.exit_code
-        )
+        self.exit_code: int = exit_code if exit_code is not None else self.exit_code
 
 
 class UsageError(AICliError):

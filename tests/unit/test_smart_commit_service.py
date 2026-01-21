@@ -44,7 +44,9 @@ class TestSmartCommitService:
             expected_diff
         )
 
-    def test_generate_commit_message_fallback(self, smart_commit_service, sample_git_diff):
+    def test_generate_commit_message_fallback(
+        self, smart_commit_service, sample_git_diff
+    ):
         """Test fallback when AI fails."""
         smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.side_effect = (

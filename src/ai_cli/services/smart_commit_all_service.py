@@ -63,9 +63,7 @@ class SmartCommitAllService:
 
         # Get prompt template and fill in variables
         prompt_template = get_prompt("file_correlation")
-        files_list = "\n".join(
-            f"- {f.path} ({f.status})" for f in ordered_files
-        )
+        files_list = "\n".join(f"- {f.path} ({f.status})" for f in ordered_files)
         diff_content = diff.content[:3000] if diff.content else "No diff available"
 
         prompt = prompt_template.format(

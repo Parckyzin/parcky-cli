@@ -6,9 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from ai_cli.clients.gemini import GeminiAIService
 from ai_cli.config.settings import AIConfig, AppConfig, GitConfig
 from ai_cli.core.models import GitBranch, GitDiff, PullRequest
-from ai_cli.clients.gemini import GeminiAIService
 from ai_cli.infrastructure.git_repository import GitRepository
 from ai_cli.services.smart_commit_service import SmartCommitService
 

@@ -66,9 +66,7 @@ def register(app: typer.Typer) -> None:
 
         if api_key:
             save_api_key(api_key)
-            console.print(
-                f"[bold green]✅ API key saved to {global_path}[/bold green]"
-            )
+            console.print(f"[bold green]✅ API key saved to {global_path}[/bold green]")
             return
 
         console.print("[bold]🤖 AI CLI Setup[/bold]")
@@ -161,9 +159,8 @@ def _show_config_status(global_path: Path, local_path: Path) -> None:
     active_path = local_path if local_path.exists() else global_path
     active_label = "local" if local_path.exists() else "global"
 
-    api_key = (
-        read_env_value(active_path, "AI_API_KEY")
-        or read_env_value(active_path, "GEMINI_API_KEY")
+    api_key = read_env_value(active_path, "AI_API_KEY") or read_env_value(
+        active_path, "GEMINI_API_KEY"
     )
     model_name = (
         read_env_value(active_path, "AI_MODEL")
@@ -185,9 +182,7 @@ def _show_config_status(global_path: Path, local_path: Path) -> None:
     if global_path.exists():
         console.print(f"  [green]✓[/green] Global: {global_path}")
     else:
-        console.print(
-            f"  [dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]"
-        )
+        console.print(f"  [dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
 
     if local_path.exists():
         console.print(f"  [green]✓[/green] Local:  {local_path.absolute()}")

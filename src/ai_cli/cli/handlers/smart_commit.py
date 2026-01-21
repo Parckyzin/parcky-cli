@@ -91,17 +91,13 @@ def register(app: typer.Typer) -> None:
 
                 console.print(pull_request_preview_panel(pr_data))
 
-                if auto_confirm or confirm(
-                    "🚀 Create pull request with this content?"
-                ):
+                if auto_confirm or confirm("🚀 Create pull request with this content?"):
                     ctx.pr_service.create_pull_request(pr_data)
                     console.print(
                         "[bold green]✅ Pull request created successfully![/bold green]"
                     )
                 else:
-                    console.print(
-                        "[yellow]ℹ️  Pull request creation skipped.[/yellow]"
-                    )
+                    console.print("[yellow]ℹ️  Pull request creation skipped.[/yellow]")
 
         except AICliError as exc:
             exit_with_error(exc, debug=debug)

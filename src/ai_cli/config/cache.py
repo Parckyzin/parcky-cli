@@ -8,6 +8,7 @@ from typing import Any
 
 from . import paths
 
+
 class Cache:
     """Simple JSON-based cache for storing user preferences."""
 

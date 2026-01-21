@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+from ..core.common.enums import AvailableAiHosts
 from . import paths
 from .writer import read_env_file
-from ..core.common.enums import AvailableAiHosts
 
 
 def get_env_paths() -> tuple[Path, Path]:
@@ -34,6 +34,7 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     """Build settings dict with nested AI/Git structures."""
     env = values or load_settings_values()
     normalized = {k.upper(): v for k, v in env.items()}
+
     def _clean(value: str | None) -> str | None:
         if value is None:
             return None

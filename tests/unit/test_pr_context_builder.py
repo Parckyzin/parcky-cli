@@ -64,8 +64,7 @@ def test_pr_context_truncation_prioritizes_important_files(monkeypatch):
     ]
     stats = PRDiffStats(
         files=[
-            PRFileStat(path=change.path, insertions=10, deletions=2)
-            for change in files
+            PRFileStat(path=change.path, insertions=10, deletions=2) for change in files
         ],
         total_files=len(files),
         total_insertions=50,
@@ -85,8 +84,7 @@ def test_pr_context_truncation_prioritizes_important_files(monkeypatch):
     assert pr_context.is_truncated is True
     assert pr_context.excluded_files
     assert any(
-        excerpt.path == "src/ai_cli/cli/main.py"
-        for excerpt in pr_context.patch_excerpt
+        excerpt.path == "src/ai_cli/cli/main.py" for excerpt in pr_context.patch_excerpt
     )
     assert any(excerpt.path == "AGENTS.MD" for excerpt in pr_context.patch_excerpt)
 

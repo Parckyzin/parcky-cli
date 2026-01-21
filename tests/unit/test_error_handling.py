@@ -19,9 +19,7 @@ from ai_cli.infrastructure import git_repository
 from ai_cli.infrastructure.git_repository import GitRepository
 
 
-def test_get_staged_diff_no_changes_raises_usage_error(
-    mock_git_config, monkeypatch
-):
+def test_get_staged_diff_no_changes_raises_usage_error(mock_git_config, monkeypatch):
     """Return a usage error when no staged changes exist."""
     repo = GitRepository(mock_git_config)
     monkeypatch.setattr(repo, "_run_command", lambda _: "")

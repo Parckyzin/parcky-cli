@@ -40,9 +40,7 @@ class CommitResult(BaseModel):
 
     group: FileGroup = Field(..., description="Associated file group.")
     commit_message: str = Field(..., description="Commit message for this group.")
-    status: str = Field(
-        ..., description="Commit status: planned, success, or failed."
-    )
+    status: str = Field(..., description="Commit status: planned, success, or failed.")
     error: str | None = Field(None, description="Error message when failed.")
 
 

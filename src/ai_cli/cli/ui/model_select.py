@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 from rich.table import Table
 from rich.text import Text
 
@@ -11,10 +12,11 @@ from .prompts import confirm, prompt
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from ai_cli.config.cache import Cache
 
 
-def interactive_model_select(active_path: "Path", cache: "Cache") -> None:
+def interactive_model_select(active_path: Path, cache: Cache) -> None:
     """Interactive model selection with arrow keys navigation."""
     models = cache.get_model_history()
     current_model = (

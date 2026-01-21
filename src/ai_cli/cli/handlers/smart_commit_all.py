@@ -59,9 +59,7 @@ def register(app: typer.Typer) -> None:
                 )
                 raise typer.Exit(0) from None
 
-            console.print(
-                f"\n[bold]Found {plan.total_files} changed file(s):[/bold]"
-            )
+            console.print(f"\n[bold]Found {plan.total_files} changed file(s):[/bold]")
             for change in plan.changes:
                 status_icon = {
                     "M": "📝",
@@ -72,8 +70,10 @@ def register(app: typer.Typer) -> None:
                 }.get(change.status, "📄")
                 console.print(f"  {status_icon} {change.path} ({change.status})")
 
-            if not dry_run and not auto_confirm and not confirm(
-                "\n✅ Proceed with smart commit all?"
+            if (
+                not dry_run
+                and not auto_confirm
+                and not confirm("\n✅ Proceed with smart commit all?")
             ):
                 console.print("[yellow]ℹ️  Operation cancelled.[/yellow]")
                 raise typer.Exit(0) from None
@@ -99,9 +99,7 @@ def register(app: typer.Typer) -> None:
                     )
                     console.print(f"   [dim]Message:[/dim] {commit.commit_message}")
                     if explain and commit.group.explanation:
-                        console.print(
-                            f"   [dim]Why:[/dim] {commit.group.explanation}"
-                        )
+                        console.print(f"   [dim]Why:[/dim] {commit.group.explanation}")
                     for file_path in commit.group.file_paths:
                         console.print(f"   • {file_path}")
                 elif commit.status == "planned":
@@ -109,13 +107,9 @@ def register(app: typer.Typer) -> None:
                         f"\n[cyan]📝 {commit.group.folder}/[/cyan] "
                         f"({commit.group.file_count} file(s))"
                     )
-                    console.print(
-                        f"   [dim]Planned:[/dim] {commit.commit_message}"
-                    )
+                    console.print(f"   [dim]Planned:[/dim] {commit.commit_message}")
                     if explain and commit.group.explanation:
-                        console.print(
-                            f"   [dim]Why:[/dim] {commit.group.explanation}"
-                        )
+                        console.print(f"   [dim]Why:[/dim] {commit.group.explanation}")
                     for file_path in commit.group.file_paths:
                         console.print(f"   • {file_path}")
                 else:

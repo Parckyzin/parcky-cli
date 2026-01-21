@@ -143,7 +143,7 @@ class CreatePRService:
         if not files:
             body_lines.append("- No files detected")
         if commit_summary:
-            body_lines.extend(["", f"## Commit Summary", commit_summary])
+            body_lines.extend(["", "## Commit Summary", commit_summary])
         return PullRequest(title=title, body="\n".join(body_lines))
 
     def create_pr(self, base_branch: str | None = None) -> CreatePRResult:

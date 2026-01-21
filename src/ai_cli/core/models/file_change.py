@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class FileChange(BaseModel):
     """Represents a changed file in the repository."""
 

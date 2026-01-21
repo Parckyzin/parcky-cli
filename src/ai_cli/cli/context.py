@@ -26,7 +26,7 @@ class CLIContext:
     git_repo: GitRepository
     ai_service: AIServiceInterface
     pr_service: GitHubPRService | None
-    cache: "Cache"
+    cache: Cache
 
 
 @lru_cache(maxsize=1)

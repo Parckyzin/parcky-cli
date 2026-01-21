@@ -1,8 +1,7 @@
-from .gemini import GeminiAIService
-
-
 from ai_cli.config.settings import AIConfig
 from ai_cli.core.common.enums import AvailableAiHosts
+
+from .gemini import GeminiAIService
 
 
 def get_ai_service(config: AIConfig):
@@ -11,6 +10,6 @@ def get_ai_service(config: AIConfig):
         return GeminiAIService(config)
     else:
         raise ValueError(f"Unsupported AI host: {config.model_host}")
-    
-    
+
+
 __all__ = ["get_ai_service"]

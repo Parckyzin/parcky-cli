@@ -23,9 +23,7 @@ def build_pr_context(
     if len(commits) > 5:
         commit_summary += f" (+{len(commits) - 5} more)"
 
-    categorized_files = [
-        _apply_category(change) for change in files_changed
-    ]
+    categorized_files = [_apply_category(change) for change in files_changed]
 
     patch_candidates = _prioritize_files(categorized_files, diff_stats)
     patch_excerpts: list[PRPatchExcerpt] = []
@@ -137,9 +135,7 @@ def _prioritize_files(
 
     priority = [change for change in files if _is_priority_file(change.path)]
     remaining = [change for change in files if change not in priority]
-    remaining_sorted = sorted(
-        remaining, key=churn_value, reverse=True
-    )
+    remaining_sorted = sorted(remaining, key=churn_value, reverse=True)
     return priority + remaining_sorted
 
 
@@ -175,13 +171,14 @@ def _excerpt_patch(patch: str, max_lines: int = 140) -> str:
     lines = patch.splitlines()
     excerpt_lines: list[str] = []
     for line in lines:
-        if line.startswith("diff --git"):
-            excerpt_lines.append(line)
-        elif line.startswith("index ") or line.startswith("---") or line.startswith("+++"):
-            excerpt_lines.append(line)
-        elif line.startswith("@@"):
-            excerpt_lines.append(line)
-        elif line.startswith(("+", "-", " ")):
+        if (
+            line.startswith("diff --git")
+            or line.startswith("index ")
+            or line.startswith("---")
+            or line.startswith("+++")
+            or line.startswith("@@")
+            or line.startswith(("+", "-", " "))
+        ):
             excerpt_lines.append(line)
         if len(excerpt_lines) >= max_lines:
             break
@@ -212,9 +209,7 @@ def _render_base_sections(
         f"Insertions: {diff_stats.total_insertions}",
         f"Deletions: {diff_stats.total_deletions}",
     ]
-    top_files = sorted(
-        diff_stats.files, key=lambda stat: stat.churn, reverse=True
-    )[:10]
+    top_files = sorted(diff_stats.files, key=lambda stat: stat.churn, reverse=True)[:10]
     stats_lines.extend(
         f"- {stat.path}: +{stat.insertions} -{stat.deletions}" for stat in top_files
     )
@@ -223,6 +218,6 @@ def _render_base_sections(
         f"BRANCH\nBase: {base_branch}\nCurrent: {current_branch}",
         f"COMMITS\nSummary: {commit_summary}\n{commit_lines}",
         f"FILES CHANGED\n{files_lines}",
-        f"DIFF STATS\n" + "\n".join(stats_lines),
+        "DIFF STATS\n" + "\n".join(stats_lines),
     ]
     return "\n\n".join(sections)

@@ -9,6 +9,7 @@ from typing import Any
 
 from . import paths
 
+
 class PromptsLoader:
     """Load and manage prompts from JSON file."""
 

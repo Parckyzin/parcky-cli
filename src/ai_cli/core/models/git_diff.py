@@ -1,4 +1,4 @@
-from pydantic import Field, BaseModel
+from pydantic import BaseModel, Field
 
 
 class GitDiff(BaseModel):
@@ -13,4 +13,3 @@ class GitDiff(BaseModel):
     def is_empty(self) -> bool:
         """Check if diff is empty."""
         return not self.content.strip()
-

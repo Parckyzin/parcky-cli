@@ -172,8 +172,7 @@ class GitRepository(GitRepositoryInterface):
             raise GitError(
                 "Failed to get changed files",
                 user_message=(
-                    "Unable to read repository status. Ensure this is a git "
-                    "repository."
+                    "Unable to read repository status. Ensure this is a git repository."
                 ),
             ) from None
 
@@ -280,7 +279,9 @@ class GitRepository(GitRepositoryInterface):
         self, pr_context: PRContext, max_context_chars: int = 35000
     ) -> str:
         """Build a structured, size-limited PR context for AI."""
-        base_sections = self._format_pr_context_sections(pr_context, include_patches=False)
+        base_sections = self._format_pr_context_sections(
+            pr_context, include_patches=False
+        )
         sections = base_sections[:]
         patch_section = self._format_patch_section(pr_context)
         truncation_section = self._format_truncation_section(pr_context)
@@ -310,7 +311,9 @@ class GitRepository(GitRepositoryInterface):
         except subprocess.CalledProcessError:
             return True
 
-    def get_branch_name_status(self, base_branch: str | None = None) -> list[PRFileChange]:
+    def get_branch_name_status(
+        self, base_branch: str | None = None
+    ) -> list[PRFileChange]:
         """Get name-status list for branch changes using three-dot comparison."""
         try:
             if base_branch is None:
@@ -330,7 +333,9 @@ class GitRepository(GitRepositoryInterface):
         try:
             if base_branch is None:
                 base_branch = self.get_default_branch()
-            output = self._run_command(["git", "diff", "--stat", f"{base_branch}...HEAD"])
+            output = self._run_command(
+                ["git", "diff", "--stat", f"{base_branch}...HEAD"]
+            )
             return self._parse_diff_stat_output(output)
         except subprocess.CalledProcessError:
             raise GitError(
@@ -458,7 +463,9 @@ class GitRepository(GitRepositoryInterface):
         commit_list = pr_context.commits[:20]
         commit_lines = "\n".join(f"- {commit}" for commit in commit_list)
         if len(pr_context.commits) > len(commit_list):
-            commit_lines += f"\n... and {len(pr_context.commits) - len(commit_list)} more"
+            commit_lines += (
+                f"\n... and {len(pr_context.commits) - len(commit_list)} more"
+            )
 
         file_sections = self._format_files_by_category(pr_context)
 
