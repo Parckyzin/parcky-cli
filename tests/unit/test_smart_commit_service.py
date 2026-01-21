@@ -26,7 +26,7 @@ class TestSmartCommitService:
     def test_generate_commit_message(self, smart_commit_service, sample_git_diff):
         """Test generating commit message."""
         expected_message = "feat: add new feature"
-        smart_commit_service.git_repo.build_ai_context.return_value = "context"
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             expected_message
         )
@@ -34,7 +34,7 @@ class TestSmartCommitService:
         result = smart_commit_service.generate_commit_message(sample_git_diff)
 
         assert result == expected_message
-        smart_commit_service.git_repo.build_ai_context.assert_called_once_with(
+        smart_commit_service.git_repo.build_commit_context.assert_called_once_with(
             sample_git_diff
         )
         expected_diff = GitDiff(
@@ -46,7 +46,7 @@ class TestSmartCommitService:
 
     def test_generate_commit_message_fallback(self, smart_commit_service, sample_git_diff):
         """Test fallback when AI fails."""
-        smart_commit_service.git_repo.build_ai_context.return_value = "context"
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.side_effect = (
             AIServiceError("boom")
         )
@@ -135,7 +135,7 @@ class TestSmartCommitService:
         """Test successful smart commit execution."""
         # Setup mocks
         smart_commit_service.git_repo.get_staged_diff.return_value = sample_git_diff
-        smart_commit_service.git_repo.build_ai_context.return_value = "context"
+        smart_commit_service.git_repo.build_commit_context.return_value = "context"
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             "feat: add feature"
         )

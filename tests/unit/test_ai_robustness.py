@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from ai_cli.clients import gemini as gemini_module
 from ai_cli.config.settings import AIConfig, GitConfig
 from ai_cli.core.exceptions import AIServiceError
-from ai_cli.core.models import GitDiff
+from ai_cli.core.models import GitDiff, PRDiffStats, PRFileChange
 from ai_cli.infrastructure.git_repository import GitRepository
 from ai_cli.services.create_pr_service import BranchInfo, CreatePRService
 
@@ -75,7 +75,7 @@ def test_build_ai_context_limits_diff():
     )
     diff = GitDiff(content=diff_content, is_truncated=True)
 
-    context = repo.build_ai_context(diff, max_example_lines=10)
+    context = repo.build_commit_context(diff, max_example_lines=10)
 
     assert "SUMMARY" in context
     assert "EXAMPLES" in context
@@ -112,19 +112,27 @@ def test_create_pr_fallback_on_ai_failure():
     pr_service = Mock()
 
     git_repo.build_ai_context.return_value = "context"
+    git_repo.get_branch_patch.return_value = "diff --git a/a b/a\n@@\n+change"
     ai_service.generate_pull_request.side_effect = AIServiceError("boom")
 
     service = CreatePRService(
         git_repo=git_repo,
         ai_service=ai_service,
         pr_service=pr_service,
+        max_context_chars=35000,
     )
     branch_info = BranchInfo(
         name="feature/test",
         base_branch="main",
         commits=["feat: add x"],
         files_changed=["src/app.py"],
-        diff=GitDiff(content="diff", is_truncated=False),
+        name_status=[PRFileChange(path="src/app.py", status="M")],
+        diff_stats=PRDiffStats(
+            files=[],
+            total_files=1,
+            total_insertions=1,
+            total_deletions=0,
+        ),
     )
 
     pr = service.generate_pr_content(branch_info)
