@@ -5,6 +5,7 @@ from .file_change import FileChange
 from .file_group import CommitResult, FileGroup, SmartCommitAllResult
 from .repository import Repository
 from .pull_request import PullRequest
+from .pr_context import PRContext, PRDiffStats, PRFileChange, PRFileStat, PRPatchExcerpt
 from ai_cli.core.common.enums import CommitType
 
 
@@ -19,4 +20,9 @@ __all__ = [
     "SmartCommitAllResult",
     "Repository",
     "PullRequest",
+    "PRContext",
+    "PRFileChange",
+    "PRFileStat",
+    "PRDiffStats",
+    "PRPatchExcerpt",
 ]
