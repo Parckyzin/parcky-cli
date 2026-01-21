@@ -10,7 +10,15 @@ from collections.abc import Iterable
 from ..config.settings import GitConfig
 from ..core.exceptions import GitError, NoStagedChangesError
 from ..core.interfaces import GitRepositoryInterface
-from ..core.models import FileChange, GitBranch, GitDiff
+from ..core.models import (
+    FileChange,
+    GitBranch,
+    GitDiff,
+    PRContext,
+    PRDiffStats,
+    PRFileChange,
+    PRFileStat,
+)
 
 
 class GitRepository(GitRepositoryInterface):
@@ -237,13 +245,13 @@ class GitRepository(GitRepositoryInterface):
                 user_message="Unable to list staged files. Check your repository.",
             ) from None
 
-    def build_ai_context(
+    def build_commit_context(
         self,
         diff: GitDiff,
         max_files: int = 20,
         max_example_lines: int = 120,
     ) -> str:
-        """Build a structured, size-limited context for AI."""
+        """Build a structured, size-limited commit context for AI."""
         files = self._extract_files_from_diff(diff.content)
         summary_lines = [
             "SUMMARY",
@@ -268,6 +276,32 @@ class GitRepository(GitRepositoryInterface):
 
         return "\n\n".join(context_parts)
 
+    def build_ai_context(
+        self, pr_context: PRContext, max_context_chars: int = 35000
+    ) -> str:
+        """Build a structured, size-limited PR context for AI."""
+        base_sections = self._format_pr_context_sections(pr_context, include_patches=False)
+        sections = base_sections[:]
+        patch_section = self._format_patch_section(pr_context)
+        truncation_section = self._format_truncation_section(pr_context)
+
+        candidate_sections = sections + [patch_section]
+        if truncation_section:
+            candidate_sections.append(truncation_section)
+
+        full_text = "\n\n".join(section for section in candidate_sections if section)
+        if len(full_text) <= max_context_chars:
+            return full_text
+
+        # Drop patches if over budget, keep base + truncation info.
+        fallback_sections = sections[:]
+        truncation_notice = truncation_section or self._build_truncation_notice(
+            pr_context.excluded_files, ["Patch excerpts removed to fit budget."]
+        )
+        if truncation_notice:
+            fallback_sections.append(truncation_notice)
+        return "\n\n".join(section for section in fallback_sections if section)
+
     def unstage_all(self) -> bool:
         """Unstage all staged files."""
         try:
@@ -275,6 +309,46 @@ class GitRepository(GitRepositoryInterface):
             return True
         except subprocess.CalledProcessError:
             return True
+
+    def get_branch_name_status(self, base_branch: str | None = None) -> list[PRFileChange]:
+        """Get name-status list for branch changes using three-dot comparison."""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_branch()
+            output = self._run_command(
+                ["git", "diff", "--name-status", f"{base_branch}...HEAD"]
+            )
+            return self._parse_name_status(output)
+        except subprocess.CalledProcessError:
+            raise GitError(
+                "Failed to get branch file status",
+                user_message="Unable to read branch changes. Check your repository.",
+            ) from None
+
+    def get_branch_diff_stats(self, base_branch: str | None = None) -> PRDiffStats:
+        """Get diff stats for branch changes using three-dot comparison."""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_branch()
+            output = self._run_command(["git", "diff", "--stat", f"{base_branch}...HEAD"])
+            return self._parse_diff_stat_output(output)
+        except subprocess.CalledProcessError:
+            raise GitError(
+                "Failed to get branch diff stats",
+                user_message="Unable to read diff stats. Check your repository.",
+            ) from None
+
+    def get_branch_patch(self, base_branch: str, file_path: str) -> str:
+        """Get diff patch for a specific file."""
+        try:
+            return self._run_command(
+                ["git", "diff", f"{base_branch}...HEAD", "--", file_path]
+            )
+        except subprocess.CalledProcessError:
+            raise GitError(
+                f"Failed to get patch for {file_path}",
+                user_message="Unable to read patch for a file in this branch.",
+            ) from None
 
     def _extract_files_from_diff(self, diff_content: str) -> list[str]:
         """Extract file paths from a unified diff."""
@@ -299,6 +373,193 @@ class GitRepository(GitRepositoryInterface):
             seen.add(item)
             result.append(item)
         return result
+
+    def _parse_name_status(self, output: str) -> list[PRFileChange]:
+        """Parse git diff --name-status output."""
+        changes: list[PRFileChange] = []
+        if not output:
+            return changes
+        for line in output.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            status = parts[0].strip()
+            if status.startswith("R") and len(parts) >= 3:
+                old_path = parts[1].strip()
+                new_path = parts[2].strip()
+                changes.append(
+                    PRFileChange(path=new_path, status=status, old_path=old_path)
+                )
+            elif len(parts) >= 2:
+                path = parts[1].strip()
+                changes.append(PRFileChange(path=path, status=status))
+        return changes
+
+    def _parse_diff_stat_output(self, output: str) -> PRDiffStats:
+        """Parse git diff --stat output."""
+        files: list[PRFileStat] = []
+        total_files = 0
+        total_insertions = 0
+        total_deletions = 0
+
+        if not output:
+            return PRDiffStats(
+                files=[],
+                total_files=0,
+                total_insertions=0,
+                total_deletions=0,
+            )
+
+        for line in output.splitlines():
+            line = line.rstrip()
+            if not line:
+                continue
+            if "file changed" in line:
+                match = re.search(
+                    r"(?P<files>\d+) file(s)? changed"
+                    r"(, (?P<insertions>\d+) insertions\(\+\))?"
+                    r"(, (?P<deletions>\d+) deletions\(-\))?",
+                    line,
+                )
+                if match:
+                    total_files = int(match.group("files") or 0)
+                    total_insertions = int(match.group("insertions") or 0)
+                    total_deletions = int(match.group("deletions") or 0)
+                continue
+
+            if "|" not in line:
+                continue
+            path_part, changes_part = line.split("|", 1)
+            path = path_part.strip()
+            change_symbols = changes_part.strip()
+            insertions = change_symbols.count("+")
+            deletions = change_symbols.count("-")
+            files.append(
+                PRFileStat(path=path, insertions=insertions, deletions=deletions)
+            )
+
+        if total_files == 0:
+            total_files = len(files)
+        if total_insertions == 0 and total_deletions == 0:
+            total_insertions = sum(stat.insertions for stat in files)
+            total_deletions = sum(stat.deletions for stat in files)
+
+        return PRDiffStats(
+            files=files,
+            total_files=total_files,
+            total_insertions=total_insertions,
+            total_deletions=total_deletions,
+        )
+
+    def _format_pr_context_sections(
+        self, pr_context: PRContext, include_patches: bool
+    ) -> list[str]:
+        """Format PR context sections."""
+        commit_list = pr_context.commits[:20]
+        commit_lines = "\n".join(f"- {commit}" for commit in commit_list)
+        if len(pr_context.commits) > len(commit_list):
+            commit_lines += f"\n... and {len(pr_context.commits) - len(commit_list)} more"
+
+        file_sections = self._format_files_by_category(pr_context)
+
+        stats_lines = [
+            f"Total files: {pr_context.diff_stats.total_files}",
+            f"Insertions: {pr_context.diff_stats.total_insertions}",
+            f"Deletions: {pr_context.diff_stats.total_deletions}",
+        ]
+        churn_sorted = sorted(
+            pr_context.diff_stats.files, key=lambda stat: stat.churn, reverse=True
+        )
+        top_stats = churn_sorted[:10]
+        if top_stats:
+            stats_lines.append("Top files by churn:")
+            stats_lines.extend(
+                f"- {stat.path}: +{stat.insertions} -{stat.deletions}"
+                for stat in top_stats
+            )
+
+        sections = [
+            "BRANCH\n"
+            f"Base: {pr_context.base_branch}\n"
+            f"Current: {pr_context.current_branch}",
+            "COMMITS\n"
+            f"Summary: {pr_context.commit_summary}\n"
+            f"Count: {len(pr_context.commits)}\n"
+            f"{commit_lines}",
+            "FILES CHANGED\n" + "\n".join(file_sections),
+            "DIFF STATS\n" + "\n".join(stats_lines),
+        ]
+
+        if include_patches:
+            sections.append(self._format_patch_section(pr_context))
+
+        truncation = self._format_truncation_section(pr_context)
+        if truncation:
+            sections.append(truncation)
+
+        return sections
+
+    def _format_files_by_category(self, pr_context: PRContext) -> list[str]:
+        """Format files changed grouped by category."""
+        grouped: dict[str, list[str]] = {}
+        for change in pr_context.files_changed:
+            category = change.category or "other"
+            grouped.setdefault(category, []).append(self._format_name_status(change))
+
+        ordered_categories = [
+            "config",
+            "cli",
+            "infra",
+            "tests",
+            "docs",
+            "other",
+        ]
+        lines: list[str] = []
+        for category in ordered_categories:
+            if category not in grouped:
+                continue
+            lines.append(f"{category.upper()}:")
+            lines.extend(f"  {entry}" for entry in grouped[category])
+        return lines
+
+    def _format_name_status(self, change: PRFileChange) -> str:
+        """Format name-status entry."""
+        if change.old_path:
+            return f"{change.status} {change.old_path} -> {change.path}"
+        return f"{change.status} {change.path}"
+
+    def _format_patch_section(self, pr_context: PRContext) -> str:
+        """Format patch excerpts section."""
+        if not pr_context.patch_excerpt:
+            return "PATCH EXCERPTS\n(No patch excerpts included.)"
+        lines = ["PATCH EXCERPTS"]
+        for excerpt in pr_context.patch_excerpt:
+            header = f"File: {excerpt.path}"
+            if excerpt.reason:
+                header = f"{header} ({excerpt.reason})"
+            lines.append(header)
+            lines.append(excerpt.excerpt)
+        return "\n".join(lines)
+
+    def _format_truncation_section(self, pr_context: PRContext) -> str:
+        """Format truncation section."""
+        if not pr_context.is_truncated:
+            return ""
+        return self._build_truncation_notice(
+            pr_context.excluded_files, pr_context.truncation_notes
+        )
+
+    def _build_truncation_notice(
+        self, excluded_files: list[str], notes: list[str]
+    ) -> str:
+        """Build truncation notice section."""
+        lines = ["TRUNCATION NOTICE"]
+        if notes:
+            lines.extend(f"- {note}" for note in notes)
+        if excluded_files:
+            lines.append("Excluded files:")
+            lines.extend(f"- {path}" for path in excluded_files)
+        return "\n".join(lines)
 
     def get_default_branch(self) -> str:
         """Get the default branch name (main or master)."""
@@ -346,7 +607,7 @@ class GitRepository(GitRepositoryInterface):
             commits_output = ""
             try:
                 commits_output = self._run_command(
-                    ["git", "log", f"{base_branch}..HEAD", "--pretty=format:%s"]
+                    ["git", "log", "--oneline", f"{base_branch}..HEAD"]
                 )
             except GitError:
                 commits_output = ""
