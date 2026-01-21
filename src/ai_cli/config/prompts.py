@@ -73,17 +73,19 @@ class PromptsLoader:
             },
             "pull_request": {
                 "prompt": (
-                    "Create a title and description for a Pull Request based on the changes.\n"
-                    "The format must be Markdown.\n\n"
-                    "Required structure:\n"
-                    "Title: [Short and clear title suggestion]\n"
-                    "Body:\n"
+                    "Create a Pull Request title and body using ALL context sections provided.\n"
+                    "Use commits, files list, stats, and curated patches to ensure coverage.\n"
+                    "Do NOT rely only on patches.\n\n"
+                    "Output format:\n"
+                    "First line: a short, clear title (plain text)\n"
+                    "Second line: blank\n"
+                    "Then a Markdown body with sections:\n"
                     "## What was done\n"
-                    "- List the main changes clearly\n\n"
+                    "- Summarize the full scope of changes\n\n"
                     "## Why it was done\n"
-                    "- Explain the motivation\n\n"
+                    "- Explain motivation/context\n\n"
                     "## How to test\n"
-                    "- Provide steps to validate"
+                    "- Provide validation steps based on the changes"
                 )
             },
             "file_correlation": {
