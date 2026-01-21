@@ -131,9 +131,8 @@ class GeminiAIService(AIServiceInterface):
     def _parse_pr_response(self, ai_response: str) -> PullRequest:
         """Parse the AI response to extract title and body."""
         lines = ai_response.split("\n")
-
         title = ""
-        body_lines = []
+        body_lines: list[str] = []
         found_body = False
 
         for line in lines:
@@ -145,8 +144,11 @@ class GeminiAIService(AIServiceInterface):
                 body_lines.append(line)
 
         if not title:
-            title = lines[0].strip()
-            body_lines = lines[1:]
+            title = lines[0].strip() if lines else ""
+            remaining = lines[1:] if len(lines) > 1 else []
+            if remaining and remaining[0].strip() == "":
+                remaining = remaining[1:]
+            body_lines = remaining
 
         body = "\n".join(body_lines).strip()
 
