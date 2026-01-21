@@ -32,7 +32,7 @@ class SmartCommitService:
 
     def generate_commit_message(self, diff: GitDiff) -> str:
         """Generate AI-powered commit message."""
-        ai_context = self.git_repo.build_ai_context(diff)
+        ai_context = self.git_repo.build_commit_context(diff)
         ai_diff = GitDiff(content=ai_context, is_truncated=diff.is_truncated)
         try:
             return self.ai_service.generate_commit_message(ai_diff)
