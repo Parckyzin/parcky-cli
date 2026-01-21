@@ -2,7 +2,9 @@
 Unit tests for core models.
 """
 
-from src.ai_cli.core.models import (
+import pytest
+
+from ai_cli.core.models import (
     CommitMessage,
     CommitType,
     GitBranch,
@@ -134,9 +136,10 @@ class TestGitBranch:
 
     def test_is_valid_with_none_name(self):
         """Test is_valid with None name."""
-        branch = GitBranch(name=None)
+        from pydantic import ValidationError
 
-        assert branch.is_valid is False
+        with pytest.raises(ValidationError):
+            GitBranch(name=None)
 
 
 class TestCommitType:
