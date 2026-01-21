@@ -58,6 +58,7 @@ def register(app: typer.Typer) -> None:
                 git_repo=ctx.git_repo,
                 ai_service=ctx.ai_service,
                 pr_service=ctx.pr_service,
+                max_context_chars=ctx.config.ai.max_context_chars,
             )
 
             console.print("[yellow]🔍 Analyzing branch changes...[/yellow]")
