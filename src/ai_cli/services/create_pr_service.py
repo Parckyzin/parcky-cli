@@ -4,7 +4,7 @@ Service for creating pull requests based on branch changes.
 
 from dataclasses import dataclass
 
-from ..core.exceptions import GitError, PullRequestError
+from ..core.exceptions import AIServiceError, GitError, PullRequestError
 from ..core.interfaces import AIServiceInterface, PullRequestServiceInterface
 from ..core.models import GitDiff, PullRequest
 from ..infrastructure.git_repository import GitRepository
@@ -54,7 +54,11 @@ class CreatePRService:
         if current_branch.name == base_branch:
             raise GitError(
                 f"You are on the default branch '{base_branch}'. "
-                "Please switch to a feature branch first."
+                "Please switch to a feature branch first.",
+                user_message=(
+                    f"You are on the default branch '{base_branch}'. "
+                    "Switch to a feature branch and try again."
+                ),
             )
 
         commits = self.git_repo.get_branch_commits(base_branch)
@@ -64,7 +68,11 @@ class CreatePRService:
         if not commits and not files_changed:
             raise GitError(
                 f"No changes found between '{current_branch.name}' and '{base_branch}'. "
-                "Make sure you have commits on this branch."
+                "Make sure you have commits on this branch.",
+                user_message=(
+                    "No changes found between the current branch and base. "
+                    "Commit your changes and try again."
+                ),
             )
 
         return BranchInfo(
@@ -82,7 +90,44 @@ class CreatePRService:
         if len(branch_info.commits) > 5:
             commit_summary += f" (+{len(branch_info.commits) - 5} more)"
 
-        return self.ai_service.generate_pull_request(branch_info.diff, commit_summary)
+        ai_context = self.git_repo.build_ai_context(branch_info.diff)
+        ai_diff = GitDiff(
+            content=ai_context,
+            is_truncated=branch_info.diff.is_truncated,
+        )
+        try:
+            return self.ai_service.generate_pull_request(ai_diff, commit_summary)
+        except AIServiceError:
+            return self._fallback_pull_request(branch_info, commit_summary)
+
+    def _fallback_pull_request(
+        self, branch_info: BranchInfo, commit_summary: str
+    ) -> PullRequest:
+        """Build a deterministic fallback pull request."""
+        title = f"chore: update {branch_info.name}"
+        commits = branch_info.commits[:10]
+        files = branch_info.files_changed[:20]
+        body_lines = [
+            "## Summary",
+            "Automated fallback PR content (AI unavailable).",
+            "",
+            "## Commits",
+            *(f"- {commit}" for commit in commits),
+        ]
+        if not commits:
+            body_lines.append("- No commits detected")
+        body_lines.extend(
+            [
+                "",
+                "## Files Changed",
+                *(f"- {file_path}" for file_path in files),
+            ]
+        )
+        if not files:
+            body_lines.append("- No files detected")
+        if commit_summary:
+            body_lines.extend(["", f"## Commit Summary", commit_summary])
+        return PullRequest(title=title, body="\n".join(body_lines))
 
     def create_pr(self, base_branch: str | None = None) -> CreatePRResult:
         """
