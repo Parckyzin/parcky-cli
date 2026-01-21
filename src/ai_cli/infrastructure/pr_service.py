@@ -26,7 +26,11 @@ class GitHubPRService(PullRequestServiceInterface):
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise PullRequestError(
                 "GitHub CLI (gh) is not installed or not available. "
-                "Please install it from https://cli.github.com/"
+                "Please install it from https://cli.github.com/",
+                user_message=(
+                    "GitHub CLI is not available. Install it from "
+                    "https://cli.github.com/ and run `gh auth login`."
+                ),
             ) from None
 
     def _run_gh_command(self, command: list) -> str:
@@ -37,7 +41,13 @@ class GitHubPRService(PullRequestServiceInterface):
             )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            raise PullRequestError(f"GitHub CLI command failed: {e.stderr}") from e
+            raise PullRequestError(
+                f"GitHub CLI command failed: {e.stderr}",
+                user_message=(
+                    "GitHub CLI command failed. Check your authentication "
+                    "with `gh auth status` and try again."
+                ),
+            ) from e
 
     def create_pull_request(self, pr: PullRequest) -> bool:
         """Create a pull request using GitHub CLI."""
@@ -60,7 +70,11 @@ class GitHubPRService(PullRequestServiceInterface):
             raise
         except Exception as e:
             raise PullRequestError(
-                f"Unexpected error creating pull request: {e}"
+                f"Unexpected error creating pull request: {e}",
+                user_message=(
+                    "Unexpected error while creating the pull request. "
+                    "Verify your GitHub CLI setup and try again."
+                ),
             ) from e
 
     def is_authenticated(self) -> bool:
@@ -81,4 +95,10 @@ class GitHubPRService(PullRequestServiceInterface):
 
             return json.loads(output)
         except Exception as e:
-            raise PullRequestError(f"Failed to get repository info: {e}") from e
+            raise PullRequestError(
+                f"Failed to get repository info: {e}",
+                user_message=(
+                    "Failed to read repository info from GitHub CLI. "
+                    "Check `gh auth status`."
+                ),
+            ) from e

@@ -22,7 +22,11 @@ class GitHubRepoService(RepositoryServiceInterface):
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RepositoryError(
                 "GitHub CLI (gh) is not installed or not available. "
-                "Please install it from https://cli.github.com/"
+                "Please install it from https://cli.github.com/",
+                user_message=(
+                    "GitHub CLI is not available. Install it from "
+                    "https://cli.github.com/ and run `gh auth login`."
+                ),
             ) from None
 
     def _run_gh_command(self, command: list[str]) -> str:
@@ -31,7 +35,13 @@ class GitHubRepoService(RepositoryServiceInterface):
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            raise RepositoryError(f"GitHub CLI command failed: {e.stderr}") from e
+            raise RepositoryError(
+                f"GitHub CLI command failed: {e.stderr}",
+                user_message=(
+                    "GitHub CLI command failed. Check your authentication "
+                    "with `gh auth status` and try again."
+                ),
+            ) from e
 
     def create_repository(self, repo: Repository) -> str:
         """Create a new repository using GitHub CLI.
@@ -46,7 +56,13 @@ class GitHubRepoService(RepositoryServiceInterface):
             RepositoryError: If repository creation fails.
         """
         if not repo.is_valid:
-            raise RepositoryError("Invalid repository name")
+            raise RepositoryError(
+                "Invalid repository name",
+                user_message=(
+                    "Invalid repository name. Use only letters, numbers, "
+                    "hyphens, and underscores."
+                ),
+            )
 
         try:
             command = [
@@ -66,7 +82,13 @@ class GitHubRepoService(RepositoryServiceInterface):
         except RepositoryError:
             raise
         except Exception as e:
-            raise RepositoryError(f"Unexpected error creating repository: {e}") from e
+            raise RepositoryError(
+                f"Unexpected error creating repository: {e}",
+                user_message=(
+                    "Unexpected error while creating the repository. "
+                    "Verify your GitHub CLI setup and try again."
+                ),
+            ) from e
 
     def is_authenticated(self) -> bool:
         """Check if user is authenticated with GitHub CLI."""
