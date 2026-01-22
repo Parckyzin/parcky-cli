@@ -12,6 +12,8 @@ dependencies = [
     "ruff>=0.14.11",
     "taskipy>=1.14.1",
     "typer>=0.21.1",
+    "prompt_toolkit>=3.0",
+    
 ]
 authors = [
     {name = "Jose Carlos da SIlva Filho"}
@@ -36,6 +38,9 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
+]
+tui = [
+    "prompt_toolkit>=3.0",
 ]
 
 [project.scripts]
@@ -197,4 +202,3 @@ env-gen = "python scripts/env-gen.py"
 env-gen-global = "python scripts/env-gen.py --global"
 validate-env = "python -c \"from src.ai_cli.config.settings import AppConfig; from src.ai_cli.core.exceptions import ConfigurationError; import os; print('🔍 Validating configuration...'); has_api_key = bool(os.getenv('GEMINI_API_KEY')); print(f'GEMINI_API_KEY: {\"✅ Set\" if has_api_key else \"❌ Missing\"}'); print('✅ Configuration structure is valid!' if has_api_key else '⚠️  Set GEMINI_API_KEY to fully validate configuration')\""
 show-config = "ai-cli config"
-
