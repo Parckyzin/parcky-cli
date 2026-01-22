@@ -142,19 +142,16 @@ def _prioritize_files(
 def _is_priority_file(path: str) -> bool:
     """Check whether a file should always be included in patch excerpts."""
     normalized = path.lower()
-    if normalized.startswith("src/ai_cli/cli/"):
-        return True
-    if normalized.startswith("src/ai_cli/config/"):
-        return True
-    if normalized.startswith("src/ai_cli/core/interfaces/"):
-        return True
-    if normalized.endswith("agents.md") or normalized.endswith("readme.md"):
-        return True
-    if normalized.startswith(".github/") or normalized.startswith("scripts/"):
-        return True
-    if normalized in {"pyproject.toml", "uv.lock", "makefile"}:
-        return True
-    return False
+    return (
+        normalized.startswith("src/ai_cli/cli/")
+        or normalized.startswith("src/ai_cli/config/")
+        or normalized.startswith("src/ai_cli/core/interfaces/")
+        or normalized.endswith("agents.md")
+        or normalized.endswith("readme.md")
+        or normalized.startswith(".github/")
+        or normalized.startswith("scripts/")
+        or normalized in {"pyproject.toml", "uv.lock", "makefile"}
+    )
 
 
 def _patch_reason(change: PRFileChange) -> str:
