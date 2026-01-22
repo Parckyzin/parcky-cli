@@ -34,3 +34,13 @@ def get_local_prompts_path() -> Path:
 def get_package_prompts_path() -> Path:
     """Return the package prompts.json path."""
     return Path(__file__).resolve().parents[3] / "prompts.json"
+
+
+def get_local_profiles_path() -> Path:
+    """Return the local AI profiles path."""
+    return Path.cwd() / "ai-profiles.json"
+
+
+def get_global_profiles_path() -> Path:
+    """Return the global AI profiles path."""
+    return get_config_dir() / "ai-profiles.json"

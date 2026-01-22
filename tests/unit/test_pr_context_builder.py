@@ -42,7 +42,7 @@ def test_parse_diff_stat_output():
 def test_pr_context_truncation_prioritizes_important_files(monkeypatch):
     repo = GitRepository(GitConfig(max_diff_size=1000, default_branch="main"))
 
-    def fake_patch(base_branch: str, file_path: str) -> str:
+    def fake_patch(_base_branch: str, file_path: str) -> str:
         return "\n".join(
             [
                 f"diff --git a/{file_path} b/{file_path}",

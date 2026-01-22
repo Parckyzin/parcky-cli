@@ -31,13 +31,15 @@ class FakeCache:
         payload = f"{model_name}|{temperature}|{max_tokens}|{prompt}|{context}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def is_safe_for_cache(self, *texts: str) -> bool:
+    def is_safe_for_cache(self, *_texts: str) -> bool:
         return True
 
     def get_ai_response(self, key: str) -> str | None:
         return self.responses.get(key)
 
-    def set_ai_response(self, key: str, response: str, max_entries: int = 200) -> None:
+    def set_ai_response(
+        self, key: str, response: str, _max_entries: int = 200
+    ) -> None:
         self.responses[key] = response
         self.set_calls += 1
 
@@ -57,6 +59,7 @@ class FakeModels:
 
     def generate_content(self, model: str, contents: str, config):
         self.calls += 1
+        self.last_args = (model, contents, config)
         return FakeResponse("feat: cached response")
 
 
@@ -64,6 +67,7 @@ class FakeClient:
     """Fake Gemini client for tests."""
 
     def __init__(self, api_key: str):
+        self._api_key = api_key
         self.models = FakeModels()
 
 

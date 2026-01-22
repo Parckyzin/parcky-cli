@@ -15,3 +15,8 @@ class AIServiceInterface(ABC):
     def generate_pull_request(self, diff: GitDiff, commit_msg: str) -> PullRequest:
         """Generate a pull request title and description."""
         pass
+
+    @abstractmethod
+    def get_available_models(self) -> list[str]:
+        """Get a list of available AI models from the service."""
+        pass

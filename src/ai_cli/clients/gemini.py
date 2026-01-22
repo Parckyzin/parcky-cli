@@ -24,6 +24,7 @@ class GeminiAIService(AIServiceInterface):
 
     def __init__(self, config: AIConfig):
         self.config = config
+        self._models_cache: list[str] | None = None
         try:
             self.client = genai.Client(api_key=config.api_key)
         except Exception as e:
@@ -128,7 +129,8 @@ class GeminiAIService(AIServiceInterface):
 
         return self._parse_pr_response(ai_response)
 
-    def _parse_pr_response(self, ai_response: str) -> PullRequest:
+    @staticmethod
+    def _parse_pr_response(ai_response: str) -> PullRequest:
         """Parse the AI response to extract title and body."""
         lines = ai_response.split("\n")
         title = ""
@@ -153,3 +155,24 @@ class GeminiAIService(AIServiceInterface):
         body = "\n".join(body_lines).strip()
 
         return PullRequest(title=title, body=body)
+
+    def get_available_models(self) -> list[str]:
+        """Get a list of available AI models from the service."""
+        if self._models_cache is not None:
+            return list(self._models_cache)
+        try:
+            models = self.client.models.list()
+            formatted_names = [model.name.split("models/")[-1] for model in models]
+
+            self._models_cache = sorted(
+                [n for n in formatted_names if isinstance(n, str) and n.startswith("gemini-")]
+            )
+            return list(self._models_cache)
+        except Exception as e:
+            raise AIServiceError(
+                f"Failed to retrieve available models: {e}",
+                user_message=(
+                    "Failed to retrieve available AI models. Check your network "
+                    "connection or API credentials and try again."
+                ),
+            ) from e

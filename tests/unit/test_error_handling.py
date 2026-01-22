@@ -35,7 +35,7 @@ def test_git_command_failure_maps_to_git_error(mock_git_config, monkeypatch):
     """Map subprocess errors to GitError with a friendly message."""
     repo = GitRepository(mock_git_config)
 
-    def fake_run(*args, **kwargs):
+    def fake_run(*_args, **_kwargs):
         raise CalledProcessError(1, ["git", "status"], stderr="boom")
 
     monkeypatch.setattr(git_repository.subprocess, "run", fake_run)
@@ -65,10 +65,10 @@ def test_cli_create_repo_external_error_exits_with_external_code(monkeypatch):
     """CLI should use external exit code when repo creation fails."""
     runner = CliRunner()
 
-    def fake_check(self):
+    def fake_check(_self):
         return None
 
-    def fake_create(self, repo):
+    def fake_create(_self, _repo):
         raise RepositoryError(
             "GitHub CLI command failed: boom",
             user_message="GitHub CLI failed. Check auth.",

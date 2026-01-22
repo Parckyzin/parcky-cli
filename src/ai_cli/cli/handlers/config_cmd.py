@@ -110,7 +110,7 @@ def register(app: typer.Typer) -> None:
             False, "--global", "-g", help="Apply changes to global config"
         ),
         select_model: bool = typer.Option(
-            False, "--select", "-s", help="Interactive model selection from history"
+            False, "--select", "-s", help="Interactive model selection"
         ),
     ) -> None:
         """
@@ -132,15 +132,34 @@ def register(app: typer.Typer) -> None:
             active_path = (
                 local_path if local_path.exists() and not use_global else global_path
             )
-            cache = ctx.cache
 
             if select_model:
-                interactive_model_select(active_path, cache)
+                current_model = (
+                    read_env_value(active_path, "AI_MODEL")
+                    or read_env_value(active_path, "MODEL_NAME")
+                    or "gemini-2.0-flash"
+                )
+                try:
+                    models = ctx.ai_service.get_available_models()
+                except AICliError as exc:
+                    console.print(
+                        f"[yellow]Warning:[/yellow] {exc.user_message or str(exc)}"
+                    )
+                    models = []
+                except Exception:
+                    console.print(
+                        "[yellow]Warning:[/yellow] Unable to load models. Manual mode enabled."
+                    )
+                    models = []
+
+                def _on_select(model: str) -> None:
+                    set_env_value(active_path, "AI_MODEL", model)
+
+                interactive_model_select(models, current_model, _on_select)
                 return
 
             if set_model:
                 set_env_value(active_path, "AI_MODEL", set_model)
-                cache.add_model_to_history(set_model)
                 console.print(f"[bold green]✅ Model set to:[/bold green] {set_model}")
                 console.print(f"[dim]   Saved to: {active_path}[/dim]")
                 return

@@ -46,13 +46,13 @@ def register(app: typer.Typer) -> None:
             debug = ctx.config.debug
             try:
                 repo_visibility = RepositoryVisibility(visibility.lower())
-            except ValueError:
+            except ValueError as err:
                 raise UsageError(
                     f"Invalid visibility '{visibility}'.",
                     user_message=(
                         "Invalid visibility value. Use one of: public, private, internal."
                     ),
-                )
+                ) from err
 
             console.print(f"[yellow]📁 Creating repository '{name}'...[/yellow]")
 
