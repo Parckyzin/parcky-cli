@@ -57,28 +57,33 @@ class AIConfig(BaseModel):
     @model_validator(mode="after")
     def validate_provider_settings(self):
         """Validate provider-specific requirements."""
-        if self.model_host in {
-            AvailableAiHosts.GOOGLE,
-            AvailableAiHosts.OPENAI,
-            AvailableAiHosts.ANTHROPIC,
-        }:
-            if not self.api_key or not self.api_key.strip():
-                raise ConfigurationError(
-                    "AI_API_KEY is required for the selected AI provider.",
-                    user_message=(
-                        "AI_API_KEY is required for the selected provider. "
-                        "Set AI_API_KEY in your configuration."
-                    ),
-                )
-        if self.model_host == AvailableAiHosts.LOCAL:
-            if not self.base_url or not self.base_url.strip():
-                raise ConfigurationError(
-                    "AI_BASE_URL is required for local AI providers.",
-                    user_message=(
-                        "AI_BASE_URL is required when AI_HOST=local. "
-                        "Set AI_BASE_URL in your configuration."
-                    ),
-                )
+        if (
+            self.model_host
+            in {
+                AvailableAiHosts.GOOGLE,
+                AvailableAiHosts.OPENAI,
+                AvailableAiHosts.ANTHROPIC,
+            }
+            and (not self.api_key or not self.api_key.strip())
+        ):
+            raise ConfigurationError(
+                "AI_API_KEY is required for the selected AI provider.",
+                user_message=(
+                    "AI_API_KEY is required for the selected provider. "
+                    "Set AI_API_KEY in your configuration."
+                ),
+            )
+        if (
+            self.model_host == AvailableAiHosts.LOCAL
+            and (not self.base_url or not self.base_url.strip())
+        ):
+            raise ConfigurationError(
+                "AI_BASE_URL is required for local AI providers.",
+                user_message=(
+                    "AI_BASE_URL is required when AI_HOST=local. "
+                    "Set AI_BASE_URL in your configuration."
+                ),
+            )
         return self
 
 
@@ -124,7 +129,7 @@ class AppConfig(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        _settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
