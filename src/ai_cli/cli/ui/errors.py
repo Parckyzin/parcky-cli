@@ -20,7 +20,7 @@ def exit_with_error(error: AICliError, *, debug: bool) -> None:
     raise typer.Exit(error.exit_code) from None
 
 
-def exit_with_unexpected_error(error: Exception, *, debug: bool) -> None:
+def exit_with_unexpected_error(_error: Exception, *, debug: bool) -> None:
     """Exit with an unexpected error."""
     console.print(
         "[bold red]❌ Unexpected error.[/bold red] "
