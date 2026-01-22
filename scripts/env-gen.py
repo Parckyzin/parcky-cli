@@ -94,8 +94,8 @@ def get_current_api_key(config_path: Path) -> str:
 
 def set_api_key(api_key: str, global_config: bool = True) -> None:
     """Set or update the API key in the config file."""
-    from ai_cli.config.writer import set_env_value
     from ai_cli.config.paths import get_global_env_path, get_local_env_path
+    from ai_cli.config.writer import set_env_value
 
     if global_config:
         config_path = get_global_env_path()
