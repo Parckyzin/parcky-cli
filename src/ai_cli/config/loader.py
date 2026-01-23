@@ -114,6 +114,10 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     if max_context_chars is not None:
         ai_values["max_context_chars"] = _parse_int(max_context_chars)
 
+    system_instruction = _clean(normalized.get("AI_SYSTEM_INSTRUCTION"))
+    if system_instruction is not None:
+        ai_values["system_instruction"] = system_instruction
+
     git_values: dict[str, Any] = {}
 
     git_max_diff_size = _clean(normalized.get("GIT_MAX_DIFF_SIZE"))

@@ -97,12 +97,6 @@ class PromptsLoader:
                     "GROUP: file3.py"
                 )
             },
-            "system_instruction": {
-                "prompt": (
-                    "You are a senior DevOps engineer obsessed with best practices "
-                    "and Conventional Commits."
-                )
-            },
         }
 
     def get_prompt(self, key: str) -> str:
