@@ -21,32 +21,44 @@ _REGISTRY: dict[AvailableAiHosts, Callable[[AIConfig], AIServiceInterface]] = {
 
 def get_ai_service(config: AIConfig) -> AIServiceInterface:
     """Factory function to get the appropriate AI service based on configuration."""
-    if config.model_host not in _REGISTRY:
+    provider = getattr(config, "effective_provider", None)
+    if not provider:
+        provider = (
+            getattr(config, "ai_provider", None)
+            or getattr(config, "ai_host", None)
+            or config.model_host
+        )
+
+    if provider not in _REGISTRY:
         raise ConfigurationError(
-            f"Unsupported AI host: {config.model_host}",
+            f"Unsupported AI host: {provider}",
             user_message=(
-                f"AI_HOST '{config.model_host}' is not supported. "
+                f"AI_HOST '{provider}' is not supported. "
                 "Choose google, openai, anthropic, or local."
             ),
         )
 
-    if config.model_host in {
-        AvailableAiHosts.GOOGLE,
-        AvailableAiHosts.OPENAI,
-        AvailableAiHosts.ANTHROPIC,
-    } and not config.api_key:
+    if (
+        provider
+        in {
+            AvailableAiHosts.GOOGLE,
+            AvailableAiHosts.OPENAI,
+            AvailableAiHosts.ANTHROPIC,
+        }
+        and not config.api_key
+    ):
         raise ConfigurationError(
             "AI_API_KEY is required for the selected AI provider.",
             user_message="AI_API_KEY is required for the selected provider.",
         )
 
-    if config.model_host == AvailableAiHosts.LOCAL and not config.base_url:
+    if provider == AvailableAiHosts.LOCAL and not config.base_url:
         raise ConfigurationError(
             "AI_BASE_URL is required for local AI providers.",
             user_message="AI_BASE_URL is required when AI_HOST=local.",
         )
 
-    return _REGISTRY[config.model_host](config)
+    return _REGISTRY[provider](config)
 
 
 __all__ = ["get_ai_service"]
