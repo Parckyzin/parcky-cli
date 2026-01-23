@@ -52,12 +52,16 @@ def test_get_ai_service_unknown_host():
 
 
 def test_get_ai_service_requires_api_key():
-    config = SimpleNamespace(model_host=AvailableAiHosts.OPENAI, api_key=None, base_url=None)
+    config = SimpleNamespace(
+        model_host=AvailableAiHosts.OPENAI, api_key=None, base_url=None
+    )
     with pytest.raises(ConfigurationError):
         get_ai_service(config)
 
 
 def test_get_ai_service_requires_base_url_for_local():
-    config = SimpleNamespace(model_host=AvailableAiHosts.LOCAL, api_key=None, base_url=None)
+    config = SimpleNamespace(
+        model_host=AvailableAiHosts.LOCAL, api_key=None, base_url=None
+    )
     with pytest.raises(ConfigurationError):
         get_ai_service(config)
