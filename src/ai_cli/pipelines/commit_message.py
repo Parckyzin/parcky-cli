@@ -59,12 +59,17 @@ def build_commit_context(
     summary_section = format_section("SUMMARY", "\n".join(summary_body_lines))
     examples_section = format_section("EXAMPLES", examples)
     notes: list[str] = []
-    if diff.is_truncated:
-        notes.append("Original diff was truncated.")
-    notes.extend(diff.truncation_notes)
+    if diff.truncation_notes:
+        notes.extend(diff.truncation_notes)
+    elif diff.is_truncated:
+        notes.append("Diff was truncated.")
     if examples_truncated:
         notes.append(f"Diff examples truncated to {max_example_lines} lines.")
 
+    max_notes = 8
+    if len(notes) > max_notes:
+        notes = list(notes[:max_notes]) + [f"... and {len(notes) - max_notes} more notes"]
+    
     notes_section = format_notes(notes)
     context_parts = [summary_section, examples_section, notes_section]
 
