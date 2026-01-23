@@ -24,6 +24,14 @@ DEFAULT_SYSTEM_INSTRUCTION = (
 class AIConfig(BaseModel):
     """AI service configuration."""
 
+    ai_provider: Optional[str] = Field(
+        default=None,
+        description="Preferred AI provider name (new field, overrides ai_host)",
+    )
+    ai_host: Optional[str] = Field(
+        default=None,
+        description="Legacy AI provider name (compatibility field)",
+    )
     model_host: AvailableAiHosts = Field(
         default=AvailableAiHosts.GOOGLE, description="AI model host service"
     )
@@ -58,6 +66,19 @@ class AIConfig(BaseModel):
         gt=0,
         description="Maximum context size for AI prompts (characters)",
     )
+
+    @field_validator("ai_provider", "ai_host")
+    @classmethod
+    def normalize_provider_fields(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized else None
+
+    @property
+    def effective_provider(self) -> Optional[str]:
+        """Return the effective AI provider for compatibility checks."""
+        return self.ai_provider or self.ai_host
 
     @model_validator(mode="after")
     def validate_provider_settings(self):
