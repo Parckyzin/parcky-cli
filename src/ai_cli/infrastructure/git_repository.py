@@ -251,29 +251,15 @@ class GitRepository(GitRepositoryInterface):
         max_example_lines: int = 120,
     ) -> str:
         """Build a structured, size-limited commit context for AI."""
-        files = self._extract_files_from_diff(diff.content)
-        summary_lines = [
-            "SUMMARY",
-            f"Files changed: {len(files)}",
-        ]
-        for file_path in files[:max_files]:
-            summary_lines.append(f"- {file_path}")
-        if len(files) > max_files:
-            summary_lines.append(f"... and {len(files) - max_files} more")
+        from ai_cli.pipelines import commit_message as commit_message_pipeline
 
-        example_lines = diff.content.splitlines()[:max_example_lines]
-        examples = "\n".join(example_lines) if example_lines else "No diff available."
-
-        context_parts = [
-            "\n".join(summary_lines),
-            "EXAMPLES",
-            examples,
-        ]
-
-        if diff.is_truncated:
-            context_parts.append("NOTE: Original diff was truncated.")
-
-        return "\n\n".join(context_parts)
+        file_paths = self._extract_files_from_diff(diff.content)
+        return commit_message_pipeline.build_commit_context(
+            diff,
+            file_paths,
+            max_files=max_files,
+            max_example_lines=max_example_lines,
+        )
 
     def build_ai_context(
         self, pr_context: PRContext, max_context_chars: int = 35000
