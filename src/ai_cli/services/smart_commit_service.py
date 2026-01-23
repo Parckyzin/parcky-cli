@@ -4,6 +4,8 @@ Main service orchestrating the smart commit workflow.
 
 from typing import Optional
 
+from ai_cli.pipelines import commit_message as commit_message_pipeline
+
 from ..core.exceptions import AIServiceError
 from ..core.interfaces import (
     AIServiceInterface,
@@ -11,7 +13,6 @@ from ..core.interfaces import (
     PullRequestServiceInterface,
 )
 from ..core.models import GitDiff
-from ai_cli.pipelines import commit_message as commit_message_pipeline
 
 
 class SmartCommitService:
@@ -37,9 +38,7 @@ class SmartCommitService:
             staged_files = self.git_repo.get_staged_file_paths()
         except Exception:
             staged_files = []
-        ai_context = commit_message_pipeline.build_commit_context(
-            diff, staged_files
-        )
+        ai_context = commit_message_pipeline.build_commit_context(diff, staged_files)
         ai_diff = GitDiff(
             content=ai_context,
             is_truncated=diff.is_truncated,
