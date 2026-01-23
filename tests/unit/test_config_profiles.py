@@ -28,7 +28,9 @@ def test_profile_overrides_apply(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
     local_profiles = tmp_path / "ai-profiles.json"
     monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: tmp_path / "none.json")
+    monkeypatch.setattr(
+        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
+    )
 
     _write_profiles(
         local_profiles,
@@ -49,7 +51,9 @@ def test_profile_does_not_override_env(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
     local_profiles = tmp_path / "ai-profiles.json"
     monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: tmp_path / "none.json")
+    monkeypatch.setattr(
+        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
+    )
 
     _write_profiles(
         local_profiles,
@@ -68,8 +72,12 @@ def test_profile_does_not_override_env(monkeypatch, tmp_path):
 
 def test_missing_profile_raises(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
-    monkeypatch.setattr(paths, "get_local_profiles_path", lambda: tmp_path / "none.json")
-    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: tmp_path / "none.json")
+    monkeypatch.setattr(
+        paths, "get_local_profiles_path", lambda: tmp_path / "none.json"
+    )
+    monkeypatch.setattr(
+        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
+    )
 
     monkeypatch.setenv("AI_PROFILE", "missing")
 
@@ -81,7 +89,9 @@ def test_env_reference_resolves(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
     local_profiles = tmp_path / "ai-profiles.json"
     monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: tmp_path / "none.json")
+    monkeypatch.setattr(
+        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
+    )
 
     _write_profiles(
         local_profiles,
