@@ -68,13 +68,22 @@ class GitRepository(GitRepositoryInterface):
                 )
 
             is_truncated = False
+            truncation_notes: list[str] = []
             if len(diff_output) > self.config.max_diff_size:
                 diff_output = (
                     diff_output[: self.config.max_diff_size] + "\n...[TRUNCATED]"
                 )
                 is_truncated = True
+                truncation_notes.append(
+                    "Diff truncated by GitRepository "
+                    f"(max_diff_size={self.config.max_diff_size})."
+                )
 
-            return GitDiff(content=diff_output, is_truncated=is_truncated)
+            return GitDiff(
+                content=diff_output,
+                is_truncated=is_truncated,
+                truncation_notes=truncation_notes,
+            )
 
         except subprocess.CalledProcessError:
             raise GitError(
@@ -218,13 +227,22 @@ class GitRepository(GitRepositoryInterface):
                         pass
 
             is_truncated = False
+            truncation_notes: list[str] = []
             if len(diff_output) > self.config.max_diff_size:
                 diff_output = (
                     diff_output[: self.config.max_diff_size] + "\n...[TRUNCATED]"
                 )
                 is_truncated = True
+                truncation_notes.append(
+                    "Diff truncated by GitRepository "
+                    f"(max_diff_size={self.config.max_diff_size})."
+                )
 
-            return GitDiff(content=diff_output, is_truncated=is_truncated)
+            return GitDiff(
+                content=diff_output,
+                is_truncated=is_truncated,
+                truncation_notes=truncation_notes,
+            )
         except subprocess.CalledProcessError:
             raise GitError(
                 "Failed to get diff for files",
@@ -250,7 +268,7 @@ class GitRepository(GitRepositoryInterface):
         max_files: int = 20,
         max_example_lines: int = 120,
     ) -> str:
-        """Build a structured, size-limited commit context for AI."""
+        """Compatibility proxy. Prefer pipelines.commit_message.build_commit_context."""
         from ai_cli.pipelines import commit_message as commit_message_pipeline
 
         file_paths = self._extract_files_from_diff(diff.content)
