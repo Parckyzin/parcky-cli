@@ -42,6 +42,6 @@ def test_build_commit_context_includes_truncation_notes_and_char_limit():
     )
 
     assert "NOTES" in context
-    assert "Original diff was truncated." in context
+    assert "Diff was truncated." in context
     assert "Diff truncated by GitRepository (max_diff_size=10)." in context
     assert "Context truncated to 200 chars." in context
