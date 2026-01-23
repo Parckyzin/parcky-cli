@@ -16,9 +16,7 @@ class AnthropicAIService(AIServiceInterface):
             user_message="Anthropic provider is not implemented yet.",
         )
 
-    def generate_pull_request(
-        self, _diff: GitDiff, _commit_msg: str
-    ) -> PullRequest:
+    def generate_pull_request(self, _diff: GitDiff, _commit_msg: str) -> PullRequest:
         raise AIServiceError(
             "Anthropic provider not implemented.",
             user_message="Anthropic provider is not implemented yet.",

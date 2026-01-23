@@ -169,7 +169,11 @@ class GeminiAIService(AIServiceInterface):
             formatted_names = [model.name.split("models/")[-1] for model in models]
 
             self._models_cache = sorted(
-                [n for n in formatted_names if isinstance(n, str) and n.startswith("gemini-")]
+                [
+                    n
+                    for n in formatted_names
+                    if isinstance(n, str) and n.startswith("gemini-")
+                ]
             )
             return list(self._models_cache)
         except Exception as e:
