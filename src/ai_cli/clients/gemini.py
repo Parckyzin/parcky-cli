@@ -129,6 +129,10 @@ class GeminiAIService(AIServiceInterface):
 
         return self._parse_pr_response(ai_response)
 
+    def generate_text(self, prompt: str, context: str) -> str:
+        """Generate a raw text response from a prompt and context."""
+        return self._generate_content(prompt, context)
+
     @staticmethod
     def _parse_pr_response(ai_response: str) -> PullRequest:
         """Parse the AI response to extract title and body."""

@@ -24,6 +24,12 @@ class LocalAIService(AIServiceInterface):
             user_message="Local AI provider is not implemented yet.",
         )
 
+    def generate_text(self, _prompt: str, _context: str) -> str:
+        raise AIServiceError(
+            "Local AI provider not implemented.",
+            user_message="Local AI provider is not implemented yet.",
+        )
+
     def get_available_models(self) -> list[str]:
         raise AIServiceError(
             "Local AI provider not implemented.",

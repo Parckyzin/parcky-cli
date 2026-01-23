@@ -24,6 +24,12 @@ class AnthropicAIService(AIServiceInterface):
             user_message="Anthropic provider is not implemented yet.",
         )
 
+    def generate_text(self, _prompt: str, _context: str) -> str:
+        raise AIServiceError(
+            "Anthropic provider not implemented.",
+            user_message="Anthropic provider is not implemented yet.",
+        )
+
     def get_available_models(self) -> list[str]:
         raise AIServiceError(
             "Anthropic provider not implemented.",
