@@ -37,9 +37,7 @@ class FakeCache:
     def get_ai_response(self, key: str) -> str | None:
         return self.responses.get(key)
 
-    def set_ai_response(
-        self, key: str, response: str, _max_entries: int = 200
-    ) -> None:
+    def set_ai_response(self, key: str, response: str, _max_entries: int = 200) -> None:
         self.responses[key] = response
         self.set_calls += 1
 
