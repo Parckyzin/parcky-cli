@@ -40,9 +40,7 @@ class TestSmartCommitService:
             result = smart_commit_service.generate_commit_message(sample_git_diff)
 
         assert result == expected_message
-        build_context.assert_called_once_with(
-            sample_git_diff, ["src/app.py"]
-        )
+        build_context.assert_called_once_with(sample_git_diff, ["src/app.py"])
         expected_diff = GitDiff(
             content="context", is_truncated=sample_git_diff.is_truncated
         )
