@@ -50,3 +50,13 @@ def format_section(title: str, body: str) -> str:
     if not body:
         return title
     return f"{title}\n{body}"
+
+
+def format_notes(notes: Sequence[str]) -> str:
+    """Format notes as a deterministic bullet list."""
+    cleaned = [note.strip() for note in notes if note.strip()]
+    deduped = dedupe_preserve(cleaned)
+    if not deduped:
+        return ""
+    body = "\n".join(f"- {note}" for note in deduped)
+    return format_section("NOTES", body)
