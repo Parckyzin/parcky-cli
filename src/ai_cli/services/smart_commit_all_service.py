@@ -4,9 +4,17 @@ Service for smart commit all operations - commits all changes grouped by folder/
 
 from collections import defaultdict
 
-from ..config.prompts import get_prompt
-from ..core.interfaces import AIServiceInterface, GitRepositoryInterface
-from ..core.models import CommitResult, FileChange, FileGroup, SmartCommitAllResult
+from ai_cli.config.prompts import get_prompt
+from ai_cli.core.interfaces import AIServiceInterface, GitRepositoryInterface
+from ai_cli.core.models import (
+    CommitResult,
+    FileChange,
+    FileGroup,
+    GitDiff,
+    SmartCommitAllResult,
+)
+from ai_cli.pipelines import commit_message as commit_message_pipeline
+from ai_cli.pipelines import file_correlation as file_correlation_pipeline
 
 
 class SmartCommitAllService:
@@ -61,20 +69,19 @@ class SmartCommitAllService:
         file_paths = [f.path for f in ordered_files]
         diff = self.git_repo.get_diff_for_files(file_paths)
 
-        # Get prompt template and fill in variables
         prompt_template = get_prompt("file_correlation")
-        files_list = "\n".join(f"- {f.path} ({f.status})" for f in ordered_files)
-        diff_content = diff.content[:3000] if diff.content else "No diff available"
-
-        prompt = prompt_template.format(
+        prompt = file_correlation_pipeline.build_file_correlation_prompt(
+            prompt_template,
             folder=folder,
-            files_list=files_list,
-            diff_content=diff_content,
+            files=ordered_files,
+            diff_content=diff.content,
         )
 
         try:
-            response = self.ai_service._generate_content(prompt, "")
-            groups = self._parse_group_response(response, ordered_files, folder)
+            response = self.ai_service.generate_text(prompt, "")
+            groups = file_correlation_pipeline.parse_group_response(
+                response, ordered_files, folder
+            )
             return self._sort_groups(groups)
         except Exception:
             # If AI fails, fall back to single group
@@ -86,74 +93,16 @@ class SmartCommitAllService:
                 )
             ]
 
-    def _parse_group_response(
-        self, response: str, files: list[FileChange], folder: str
-    ) -> list[FileGroup]:
-        """Parse AI response to extract file groups."""
-        groups: list[FileGroup] = []
-        file_map = {f.path: f for f in files}
-        file_basenames = {f.filename: f for f in files}
-        assigned_files: set[str] = set()
-
-        for line in response.split("\n"):
-            line = line.strip()
-            if not line.upper().startswith("GROUP:"):
-                continue
-
-            group_files_str = line[6:].strip()
-            group_file_names = [
-                name.strip() for name in group_files_str.split(",") if name.strip()
-            ]
-
-            group_files: list[FileChange] = []
-            for name in group_file_names:
-                # Try to match by full path first, then by basename
-                if name in file_map and name not in assigned_files:
-                    group_files.append(file_map[name])
-                    assigned_files.add(name)
-                elif name in file_basenames:
-                    full_path = file_basenames[name].path
-                    if full_path not in assigned_files:
-                        group_files.append(file_basenames[name])
-                        assigned_files.add(full_path)
-
-            if group_files:
-                ordered_group_files = self._sort_changes(group_files)
-                groups.append(
-                    FileGroup(
-                        files=ordered_group_files,
-                        folder=folder,
-                        explanation="Grouped by AI correlation within the folder.",
-                    )
-                )
-
-        # Add any unassigned files as individual groups
-        for file in self._sort_changes(files):
-            if file.path not in assigned_files:
-                groups.append(
-                    FileGroup(
-                        files=[file],
-                        folder=folder,
-                        explanation="No correlation found; kept separate.",
-                    )
-                )
-
-        if not groups:
-            return [
-                FileGroup(
-                    files=self._sort_changes(files),
-                    folder=folder,
-                    explanation="Grouped by folder (no correlation output).",
-                )
-            ]
-
-        return groups
-
     def generate_commit_message_for_group(self, group: FileGroup) -> str:
         """Generate a commit message for a file group."""
         diff = self.git_repo.get_diff_for_files(group.file_paths)
         group.diff = diff
-        commit_message = self.ai_service.generate_commit_message(diff)
+        ai_context = commit_message_pipeline.build_commit_context(
+            diff, group.file_paths
+        )
+        commit_message = self.ai_service.generate_commit_message(
+            GitDiff(content=ai_context, is_truncated=diff.is_truncated)
+        )
         group.commit_message = commit_message
         return commit_message
 
