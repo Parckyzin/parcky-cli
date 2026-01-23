@@ -2,7 +2,7 @@
 Unit tests for smart commit service.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -26,16 +26,22 @@ class TestSmartCommitService:
     def test_generate_commit_message(self, smart_commit_service, sample_git_diff):
         """Test generating commit message."""
         expected_message = "feat: add new feature"
-        smart_commit_service.git_repo.build_commit_context.return_value = "context"
+        smart_commit_service.git_repo.get_staged_file_paths.return_value = [
+            "src/app.py"
+        ]
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             expected_message
         )
 
-        result = smart_commit_service.generate_commit_message(sample_git_diff)
+        with patch(
+            "ai_cli.pipelines.commit_message.build_commit_context",
+            return_value="context",
+        ) as build_context:
+            result = smart_commit_service.generate_commit_message(sample_git_diff)
 
         assert result == expected_message
-        smart_commit_service.git_repo.build_commit_context.assert_called_once_with(
-            sample_git_diff
+        build_context.assert_called_once_with(
+            sample_git_diff, ["src/app.py"]
         )
         expected_diff = GitDiff(
             content="context", is_truncated=sample_git_diff.is_truncated
@@ -48,16 +54,19 @@ class TestSmartCommitService:
         self, smart_commit_service, sample_git_diff
     ):
         """Test fallback when AI fails."""
-        smart_commit_service.git_repo.build_commit_context.return_value = "context"
-        smart_commit_service.ai_service.generate_commit_message.side_effect = (
-            AIServiceError("boom")
-        )
         smart_commit_service.git_repo.get_staged_file_paths.return_value = [
             "src/app.py",
             "src/utils.py",
         ]
+        smart_commit_service.ai_service.generate_commit_message.side_effect = (
+            AIServiceError("boom")
+        )
 
-        result = smart_commit_service.generate_commit_message(sample_git_diff)
+        with patch(
+            "ai_cli.pipelines.commit_message.build_commit_context",
+            return_value="context",
+        ):
+            result = smart_commit_service.generate_commit_message(sample_git_diff)
 
         assert result == "chore: update 2 files"
 
@@ -137,7 +146,9 @@ class TestSmartCommitService:
         """Test successful smart commit execution."""
         # Setup mocks
         smart_commit_service.git_repo.get_staged_diff.return_value = sample_git_diff
-        smart_commit_service.git_repo.build_commit_context.return_value = "context"
+        smart_commit_service.git_repo.get_staged_file_paths.return_value = [
+            "src/app.py"
+        ]
         smart_commit_service.ai_service.generate_commit_message.return_value = (
             "feat: add feature"
         )
@@ -151,9 +162,13 @@ class TestSmartCommitService:
         )
         smart_commit_service.pr_service.create_pull_request.return_value = True
 
-        result = smart_commit_service.execute_smart_commit(
-            auto_push=True, create_pr=True
-        )
+        with patch(
+            "ai_cli.pipelines.commit_message.build_commit_context",
+            return_value="context",
+        ):
+            result = smart_commit_service.execute_smart_commit(
+                auto_push=True, create_pr=True
+            )
 
         assert result["diff_retrieved"] is True
         assert result["commit_created"] is True

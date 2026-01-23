@@ -2,7 +2,7 @@
 Unit tests for SmartCommitAllService.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from ai_cli.core.models import FileChange, GitDiff
 from ai_cli.services.smart_commit_all_service import SmartCommitAllService
@@ -16,7 +16,7 @@ def _build_service(changes_sequence):
     git_repo.get_diff_for_files.return_value = GitDiff(
         content="diff", is_truncated=False
     )
-    ai_service._generate_content.return_value = (
+    ai_service.generate_text.return_value = (
         "GROUP: src/utils.py, src/app.py\nGROUP: src/test_app.py"
     )
     ai_service.generate_commit_message.return_value = "feat: update files"
@@ -78,3 +78,19 @@ def test_plan_with_multiple_groups():
     assert len(plan.groups) == 2
     assert len(plan.commit_results) == 2
     assert any(group.file_count > 1 for group in plan.groups)
+
+
+def test_generate_commit_message_uses_pipeline():
+    changes = [
+        FileChange(path="src/app.py", status="M"),
+    ]
+    service, _ = _build_service([changes])
+    group = service.plan_smart_commit_all().groups[0]
+
+    with patch(
+        "ai_cli.pipelines.commit_message.build_commit_context",
+        return_value="context",
+    ) as build_context:
+        service.generate_commit_message_for_group(group)
+
+    build_context.assert_called_once_with(group.diff, group.file_paths)
