@@ -101,7 +101,11 @@ class SmartCommitAllService:
             diff, group.file_paths
         )
         commit_message = self.ai_service.generate_commit_message(
-            GitDiff(content=ai_context, is_truncated=diff.is_truncated)
+            GitDiff(
+                content=ai_context,
+                is_truncated=diff.is_truncated,
+                truncation_notes=diff.truncation_notes,
+            )
         )
         group.commit_message = commit_message
         return commit_message

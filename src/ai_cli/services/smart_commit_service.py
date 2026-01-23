@@ -40,7 +40,11 @@ class SmartCommitService:
         ai_context = commit_message_pipeline.build_commit_context(
             diff, staged_files
         )
-        ai_diff = GitDiff(content=ai_context, is_truncated=diff.is_truncated)
+        ai_diff = GitDiff(
+            content=ai_context,
+            is_truncated=diff.is_truncated,
+            truncation_notes=diff.truncation_notes,
+        )
         try:
             return self.ai_service.generate_commit_message(ai_diff)
         except AIServiceError:
