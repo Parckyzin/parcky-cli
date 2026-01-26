@@ -6,7 +6,9 @@ from pathlib import Path
 
 import typer
 
+from ai_cli.clients import get_ai_service
 from ai_cli.config.paths import get_global_env_path, get_local_env_path
+from ai_cli.config.settings import AppConfig
 from ai_cli.config.writer import (
     read_ai_provider,
     read_env_value,
@@ -186,7 +188,35 @@ def register(app: typer.Typer) -> None:
                 def _on_select(model: str) -> None:
                     set_env_value(active_path, "AI_MODEL", model)
 
-                interactive_model_select(models, current_model, _on_select)
+                def _on_change_provider(
+                    provider: str,
+                ) -> tuple[list[str], str | None]:
+                    set_ai_provider(active_path, provider)
+                    set_env_value(active_path, "AI_MODEL", "")
+                    set_env_value(active_path, "MODEL_NAME", "")
+                    try:
+                        new_config = AppConfig.load()
+                        new_service = get_ai_service(new_config.ai)
+                        return new_service.get_available_models(), ""
+                    except AICliError as exc:
+                        console.print(
+                            f"[yellow]Warning:[/yellow] {exc.user_message or str(exc)}"
+                        )
+                        return [], ""
+                    except Exception:
+                        console.print(
+                            "[yellow]Warning:[/yellow] Unable to load models. Manual mode enabled."
+                        )
+                        return [], ""
+
+                current_provider = read_ai_provider(active_path) or None
+                interactive_model_select(
+                    models,
+                    current_model,
+                    _on_select,
+                    current_provider=current_provider,
+                    on_change_provider=_on_change_provider,
+                )
                 return
 
             if set_model:
