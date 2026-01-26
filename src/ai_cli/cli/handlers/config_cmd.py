@@ -24,8 +24,8 @@ from ..ui.console import console
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
 from ..ui.panels import config_settings_table
-from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.prompts import confirm, prompt
+from ..ui.provider_select import select_provider as prompt_provider_select
 
 
 def register(app: typer.Typer) -> None:
@@ -126,9 +126,7 @@ def register(app: typer.Typer) -> None:
         select_provider: bool = typer.Option(
             False, "--provider", "-p", help="Select AI provider"
         ),
-        action: str | None = typer.Argument(
-            None, help="Optional action (provider)"
-        ),
+        action: str | None = typer.Argument(None, help="Optional action (provider)"),
     ) -> None:
         """
         🔧 Show or update ai-cli configuration.
@@ -391,9 +389,7 @@ def _edit_int_setting(
             continue
         value = int(raw_value)
         if value < min_value:
-            console.print(
-                f"[red]{label} must be at least {min_value}.[/red]"
-            )
+            console.print(f"[red]{label} must be at least {min_value}.[/red]")
             continue
         set_config_value(path, env_key, value)
         console.print(f"[bold green]✅ {label} updated.[/bold green]")
