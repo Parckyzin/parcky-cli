@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: uv sync --group dev --frozen
+
+      - name: Build
+        run: uv build
+
+      - name: Lint
+        run: uv run task lint
+
+      - name: Tests
+        run: uv run task test

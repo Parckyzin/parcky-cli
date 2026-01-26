@@ -53,7 +53,9 @@ def select_provider(current: str | None = None) -> str | None:
     try:
         return _select_with_prompt_toolkit(options, current)
     except ImportError:
-        console.print("[yellow]prompt_toolkit not available. Using text fallback.[/yellow]")
+        console.print(
+            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
+        )
     except Exception as exc:
         console.print(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
@@ -206,9 +208,7 @@ def _select_fallback_text(
         )
 
     console.print(table)
-    user_input = prompt(
-        "Enter number, provider name, or blank to cancel"
-    ).strip()
+    user_input = prompt("Enter number, provider name, or blank to cancel").strip()
     if not user_input or user_input.lower() in {"q", "quit"}:
         return None
     if user_input.isdigit():

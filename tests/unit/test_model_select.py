@@ -8,14 +8,12 @@ def test_provider_change_refreshes_models(monkeypatch) -> None:
         model_select.SelectionResult(action="model", value="new-model"),
     ]
 
-    def _fake_select(models, current_model, show_change_provider):
+    def _fake_select(models, _current_model, _show_change_provider):
         calls.append(models)
         return results.pop(0)
 
     monkeypatch.setattr(model_select, "_select_with_prompt_toolkit", _fake_select)
-    monkeypatch.setattr(
-        model_select, "select_provider", lambda current=None: "openai"
-    )
+    monkeypatch.setattr(model_select, "select_provider", lambda **_kwargs: "openai")
 
     changed: list[str] = []
 
@@ -52,7 +50,7 @@ def test_provider_change_cancel_keeps_state(monkeypatch) -> None:
         return results.pop(0)
 
     monkeypatch.setattr(model_select, "_select_with_prompt_toolkit", _fake_select)
-    monkeypatch.setattr(model_select, "select_provider", lambda current=None: None)
+    monkeypatch.setattr(model_select, "select_provider", lambda **_kwargs: None)
 
     changed: list[str] = []
 

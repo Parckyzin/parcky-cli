@@ -4,8 +4,7 @@ from typer.testing import CliRunner
 
 from ai_cli.cli import main as cli_main
 from ai_cli.cli.handlers import config_cmd
-from ai_cli.config import paths
-from ai_cli.config import loader
+from ai_cli.config import loader, paths
 from ai_cli.config.writer import read_env_value, set_env_value
 
 
@@ -67,9 +66,7 @@ def test_config_update_ai_max_context_chars_persists(tmp_path, monkeypatch) -> N
     assert settings_dict["ai"]["max_context_chars"] == 12000
 
 
-def test_config_invalid_git_max_diff_size_not_persisted(
-    tmp_path, monkeypatch
-) -> None:
+def test_config_invalid_git_max_diff_size_not_persisted(tmp_path, monkeypatch) -> None:
     local_path = tmp_path / ".env"
     global_path = tmp_path / "global.env"
     local_path.write_text("")
