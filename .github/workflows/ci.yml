@@ -27,7 +27,7 @@ jobs:
         run: uv sync --group dev --frozen
 
       - name: Build
-        run: uv run task build
+        run: uv build
 
       - name: Lint
         run: uv run task lint
