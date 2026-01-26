@@ -7,13 +7,19 @@ from pathlib import Path
 import typer
 
 from ai_cli.config.paths import get_global_env_path, get_local_env_path
-from ai_cli.config.writer import read_env_value, set_env_value
+from ai_cli.config.writer import (
+    read_ai_provider,
+    read_env_value,
+    set_ai_provider,
+    set_env_value,
+)
 from ai_cli.core.exceptions import AICliError
 
 from ..context import get_context
 from ..ui.console import console
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
+from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.prompts import confirm, prompt
 
 
@@ -112,6 +118,12 @@ def register(app: typer.Typer) -> None:
         select_model: bool = typer.Option(
             False, "--select", "-s", help="Interactive model selection"
         ),
+        select_provider: bool = typer.Option(
+            False, "--provider", "-p", help="Select AI provider"
+        ),
+        action: str | None = typer.Argument(
+            None, help="Optional action (provider)"
+        ),
     ) -> None:
         """
         🔧 Show or update ai-cli configuration.
@@ -119,8 +131,10 @@ def register(app: typer.Typer) -> None:
         Examples:
             ai-cli config                    # Show current config
             ai-cli config --select           # Interactive model selection
+            ai-cli config --provider         # Interactive provider selection
             ai-cli config --model gemini-2.0-flash  # Change model directly
             ai-cli config --model gemini-2.0-flash --global  # Change model globally
+            ai-cli config provider           # Interactive provider selection
         """
         debug = False
         try:
@@ -132,6 +146,23 @@ def register(app: typer.Typer) -> None:
             active_path = (
                 local_path if local_path.exists() and not use_global else global_path
             )
+
+            select_provider_flag = select_provider or action == "provider"
+
+            if select_provider_flag:
+                current_provider = read_ai_provider(active_path) or ""
+                selected = prompt_provider_select(current=current_provider or None)
+                if not selected:
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    return
+                set_ai_provider(active_path, selected)
+                set_env_value(active_path, "AI_MODEL", "")
+                set_env_value(active_path, "MODEL_NAME", "")
+                console.print(
+                    f"[bold green]✅ Provider set to:[/bold green] {selected}"
+                )
+                console.print(f"[dim]   Saved to: {active_path}[/dim]")
+                return
 
             if select_model:
                 current_model = (
