@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import typer
 
+from ai_cli.config import loader
 from ai_cli.core.common.enums import RepositoryVisibility
 from ai_cli.core.exceptions import AICliError, UsageError
 from ai_cli.core.models import Repository
 from ai_cli.infrastructure.repo_service import GitHubRepoService
 
-from ..context import get_context
 from ..ui.console import console
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 
@@ -42,8 +42,8 @@ def register(app: typer.Typer) -> None:
         """
         debug = False
         try:
-            ctx = get_context()
-            debug = ctx.config.debug
+            settings_dict = loader.build_settings_dict()
+            debug = bool(settings_dict.get("debug", False))
             try:
                 repo_visibility = RepositoryVisibility(visibility.lower())
             except ValueError as err:
