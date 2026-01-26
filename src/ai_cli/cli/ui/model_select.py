@@ -35,9 +35,9 @@ class _TuiState:
 
 
 def interactive_model_select(
-        models: list[str],
-        current_model: str,
-        on_select: Callable[[str], None],
+    models: list[str],
+    current_model: str,
+    on_select: Callable[[str], None],
 ) -> None:
     """Interactive model selection with a prompt-toolkit UI and fallback.
 
@@ -101,7 +101,9 @@ def _select_with_prompt_toolkit(models: list[str], current_model: str) -> str | 
         text.append(("", "\n"))
 
         if not filtered and state.filter_text:
-            text.append(("class:warning", "No matches. Press Ctrl+U to clear filter.\n"))
+            text.append(
+                ("class:warning", "No matches. Press Ctrl+U to clear filter.\n")
+            )
             text.append(("", "\n"))
 
         for idx, model in enumerate(options):
@@ -246,9 +248,13 @@ def _select_fallback_text(models: list[str], current_model: str) -> str | None:
 
     console.print(table)
     if len(models) > len(display):
-        console.print(f"[dim]Showing first {len(display)} of {len(models)} models.[/dim]")
+        console.print(
+            f"[dim]Showing first {len(display)} of {len(models)} models.[/dim]"
+        )
 
-    user_input = prompt("Enter number | model name | m <name> | blank to cancel").strip()
+    user_input = prompt(
+        "Enter number | model name | m <name> | blank to cancel"
+    ).strip()
     if not user_input or user_input.lower() in {"q", "quit"}:
         return None
 

@@ -24,6 +24,11 @@ def read_env_value(path: Path, key: str) -> str:
     return read_env_file(path).get(key, "")
 
 
+def read_ai_provider(path: Path) -> str:
+    """Read AI provider with fallback to legacy AI_HOST."""
+    return read_env_value(path, "AI_PROVIDER") or read_env_value(path, "AI_HOST")
+
+
 def set_env_value(path: Path, key: str, value: str) -> None:
     """Set or update a .env key in a file."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +54,11 @@ def set_env_value(path: Path, key: str, value: str) -> None:
         new_lines.append(f'{key}="{value}"')
 
     path.write_text("\n".join(new_lines).strip() + "\n")
+
+
+def set_ai_provider(path: Path, value: str) -> None:
+    """Set AI provider in a .env file (new key)."""
+    set_env_value(path, "AI_PROVIDER", value)
 
 
 def _strip_quotes(value: str) -> str:

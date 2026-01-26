@@ -46,7 +46,9 @@ def resolve_profile(profile_name: str) -> dict[str, str]:
     return profiles[profile_name]
 
 
-def apply_profile_overrides(values: dict[str, Any], profile_name: str) -> dict[str, Any]:
+def apply_profile_overrides(
+    values: dict[str, Any], profile_name: str
+) -> dict[str, Any]:
     """
     Apply profile overrides without overriding already-defined values.
 
@@ -61,7 +63,9 @@ def apply_profile_overrides(values: dict[str, Any], profile_name: str) -> dict[s
         if _has_value(merged.get(normalized_key)):
             continue
 
-        resolved = _resolve_env_reference(raw_value, profile_name=profile_name, key=normalized_key)
+        resolved = _resolve_env_reference(
+            raw_value, profile_name=profile_name, key=normalized_key
+        )
         merged[normalized_key] = resolved
 
     return merged

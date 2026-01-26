@@ -25,12 +25,10 @@ class CommitType(StrEnum):
     REVERT = "revert"
 
 
-class AvailableAiHosts(StrEnum):
-    """Available AI service hosts."""
+class AvailableProviders(StrEnum):
+    """Available AI providers."""
 
     OPENAI = "openai"
-    AZURE_OPENAI = "azure_openai"
     ANTHROPIC = "anthropic"
-    COHERE = "cohere"
     GOOGLE = "google"
     LOCAL = "local"

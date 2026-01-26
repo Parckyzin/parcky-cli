@@ -12,15 +12,28 @@ from pydantic_settings import (
 )
 
 from ai_cli.config import loader
-from ai_cli.core.common.enums import AvailableAiHosts
+from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
+
+DEFAULT_SYSTEM_INSTRUCTION = (
+    "You are a senior DevOps engineer obsessed with best practices "
+    "and Conventional Commits."
+)
 
 
 class AIConfig(BaseModel):
     """AI service configuration."""
 
-    model_host: AvailableAiHosts = Field(
-        default=AvailableAiHosts.GOOGLE, description="AI model host service"
+    ai_provider: Optional[str] = Field(
+        default=None,
+        description="Preferred AI provider name (new field, overrides ai_host)",
+    )
+    ai_host: Optional[str] = Field(
+        default=None,
+        description="Legacy AI provider name (compatibility field)",
+    )
+    model_host: AvailableProviders = Field(
+        default=AvailableProviders.GOOGLE, description="AI model host service"
     )
     model_name: str = Field(
         default="gemini-2.0-flash",
@@ -34,9 +47,9 @@ class AIConfig(BaseModel):
         default=None,
         description="Base URL for the AI service",
     )
-    system_instruction: str = Field(
-        default="You are a senior DevOps engineer obsessed with best practices and Conventional Commits.",
-        description="AI system instruction",
+    system_instruction: Optional[str] = Field(
+        default=None,
+        description=("AI system instruction (set via AI_SYSTEM_INSTRUCTION or config)"),
     )
     max_tokens: Optional[int] = Field(
         default=None, description="Maximum tokens for AI response"
@@ -54,18 +67,27 @@ class AIConfig(BaseModel):
         description="Maximum context size for AI prompts (characters)",
     )
 
+    @field_validator("ai_provider", "ai_host")
+    @classmethod
+    def normalize_provider_fields(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized else None
+
+    @property
+    def effective_provider(self) -> Optional[str]:
+        """Return the effective AI provider for compatibility checks."""
+        return self.ai_provider or self.ai_host
+
     @model_validator(mode="after")
     def validate_provider_settings(self):
         """Validate provider-specific requirements."""
-        if (
-            self.model_host
-            in {
-                AvailableAiHosts.GOOGLE,
-                AvailableAiHosts.OPENAI,
-                AvailableAiHosts.ANTHROPIC,
-            }
-            and (not self.api_key or not self.api_key.strip())
-        ):
+        if self.model_host in {
+            AvailableProviders.GOOGLE,
+            AvailableProviders.OPENAI,
+            AvailableProviders.ANTHROPIC,
+        } and (not self.api_key or not self.api_key.strip()):
             raise ConfigurationError(
                 "AI_API_KEY is required for the selected AI provider.",
                 user_message=(
@@ -73,9 +95,8 @@ class AIConfig(BaseModel):
                     "Set AI_API_KEY in your configuration."
                 ),
             )
-        if (
-            self.model_host == AvailableAiHosts.LOCAL
-            and (not self.base_url or not self.base_url.strip())
+        if self.model_host == AvailableProviders.LOCAL and (
+            not self.base_url or not self.base_url.strip()
         ):
             raise ConfigurationError(
                 "AI_BASE_URL is required for local AI providers.",
@@ -84,6 +105,11 @@ class AIConfig(BaseModel):
                     "Set AI_BASE_URL in your configuration."
                 ),
             )
+        if not self.system_instruction or not self.system_instruction.strip():
+            from ai_cli.config.prompts import get_prompt
+
+            prompt_value = get_prompt("system_instruction").strip()
+            self.system_instruction = prompt_value or DEFAULT_SYSTEM_INSTRUCTION
         return self
 
 

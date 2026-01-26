@@ -111,6 +111,7 @@ class CreatePRService:
         ai_diff = GitDiff(
             content=ai_context,
             is_truncated=pr_context.is_truncated,
+            truncation_notes=pr_context.truncation_notes,
         )
         try:
             return self.ai_service.generate_pull_request(ai_diff, commit_summary)

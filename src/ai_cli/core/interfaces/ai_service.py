@@ -17,6 +17,11 @@ class AIServiceInterface(ABC):
         pass
 
     @abstractmethod
+    def generate_text(self, prompt: str, context: str) -> str:
+        """Generate a raw text response from a prompt and context."""
+        pass
+
+    @abstractmethod
     def get_available_models(self) -> list[str]:
         """Get a list of available AI models from the service."""
         pass

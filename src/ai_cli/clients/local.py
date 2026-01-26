@@ -16,9 +16,13 @@ class LocalAIService(AIServiceInterface):
             user_message="Local AI provider is not implemented yet.",
         )
 
-    def generate_pull_request(
-        self, _diff: GitDiff, _commit_msg: str
-    ) -> PullRequest:
+    def generate_pull_request(self, _diff: GitDiff, _commit_msg: str) -> PullRequest:
+        raise AIServiceError(
+            "Local AI provider not implemented.",
+            user_message="Local AI provider is not implemented yet.",
+        )
+
+    def generate_text(self, _prompt: str, _context: str) -> str:
         raise AIServiceError(
             "Local AI provider not implemented.",
             user_message="Local AI provider is not implemented yet.",

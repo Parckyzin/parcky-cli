@@ -16,9 +16,13 @@ class OpenAIAIService(AIServiceInterface):
             user_message="OpenAI provider is not implemented yet.",
         )
 
-    def generate_pull_request(
-        self, _diff: GitDiff, _commit_msg: str
-    ) -> PullRequest:
+    def generate_pull_request(self, _diff: GitDiff, _commit_msg: str) -> PullRequest:
+        raise AIServiceError(
+            "OpenAI provider not implemented.",
+            user_message="OpenAI provider is not implemented yet.",
+        )
+
+    def generate_text(self, _prompt: str, _context: str) -> str:
         raise AIServiceError(
             "OpenAI provider not implemented.",
             user_message="OpenAI provider is not implemented yet.",

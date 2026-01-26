@@ -4,6 +4,8 @@ Main service orchestrating the smart commit workflow.
 
 from typing import Optional
 
+from ai_cli.pipelines import commit_message as commit_message_pipeline
+
 from ..core.exceptions import AIServiceError
 from ..core.interfaces import (
     AIServiceInterface,
@@ -32,8 +34,16 @@ class SmartCommitService:
 
     def generate_commit_message(self, diff: GitDiff) -> str:
         """Generate AI-powered commit message."""
-        ai_context = self.git_repo.build_commit_context(diff)
-        ai_diff = GitDiff(content=ai_context, is_truncated=diff.is_truncated)
+        try:
+            staged_files = self.git_repo.get_staged_file_paths()
+        except Exception:
+            staged_files = []
+        ai_context = commit_message_pipeline.build_commit_context(diff, staged_files)
+        ai_diff = GitDiff(
+            content=ai_context,
+            is_truncated=diff.is_truncated,
+            truncation_notes=diff.truncation_notes,
+        )
         try:
             return self.ai_service.generate_commit_message(ai_diff)
         except AIServiceError:
@@ -88,27 +98,21 @@ class SmartCommitService:
         }
 
         try:
-            # Get staged changes
             diff = self.get_staged_changes()
             results["diff_retrieved"] = True
             results["diff"] = diff
 
-            # Generate commit message
             commit_msg = self.generate_commit_message(diff)
             results["commit_message"] = commit_msg
 
-            # Create commit
             results["commit_created"] = self.create_commit(commit_msg)
 
-            # Get current branch for pushing
             current_branch = self.git_repo.get_current_branch()
             results["branch"] = current_branch.name
 
-            # Push changes
             if auto_push:
                 results["pushed"] = self.push_changes(auto_push)
 
-            # Create PR
             if create_pr:
                 results["pr_created"] = self.create_pull_request(diff, commit_msg)
 
