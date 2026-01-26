@@ -8,7 +8,7 @@ import pytest
 
 from ai_cli.config import paths
 from ai_cli.config.settings import AppConfig
-from ai_cli.core.common.enums import AvailableAiHosts
+from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
 
@@ -42,7 +42,7 @@ def test_profile_overrides_apply(monkeypatch, tmp_path):
 
     config = AppConfig.load()
 
-    assert config.ai.model_host == AvailableAiHosts.OPENAI
+    assert config.ai.model_host == AvailableProviders.OPENAI
     assert config.ai.model_name == "gpt-4o-mini"
     assert config.ai.api_key == "profile-key"
 
