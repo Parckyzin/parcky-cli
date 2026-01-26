@@ -436,7 +436,7 @@ wheels = [
 
 [[package]]
 name = "parcky-cli"
-version = "2026.6.0a2"
+version = "2026.6.0a4"
 source = { editable = "." }
 dependencies = [
     { name = "google-genai" },
