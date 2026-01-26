@@ -7,15 +7,15 @@ from ai_cli.clients.gemini import GeminiAIService
 from ai_cli.clients.local import LocalAIService
 from ai_cli.clients.openai import OpenAIAIService
 from ai_cli.config.settings import AIConfig
-from ai_cli.core.common.enums import AvailableAiHosts
+from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 from ai_cli.core.interfaces import AIServiceInterface
 
-_REGISTRY: dict[AvailableAiHosts, Callable[[AIConfig], AIServiceInterface]] = {
-    AvailableAiHosts.GOOGLE: GeminiAIService,
-    AvailableAiHosts.OPENAI: OpenAIAIService,
-    AvailableAiHosts.ANTHROPIC: AnthropicAIService,
-    AvailableAiHosts.LOCAL: LocalAIService,
+_REGISTRY: dict[AvailableProviders, Callable[[AIConfig], AIServiceInterface]] = {
+    AvailableProviders.GOOGLE: GeminiAIService,
+    AvailableProviders.OPENAI: OpenAIAIService,
+    AvailableProviders.ANTHROPIC: AnthropicAIService,
+    AvailableProviders.LOCAL: LocalAIService,
 }
 
 
@@ -41,9 +41,9 @@ def get_ai_service(config: AIConfig) -> AIServiceInterface:
     if (
         provider
         in {
-            AvailableAiHosts.GOOGLE,
-            AvailableAiHosts.OPENAI,
-            AvailableAiHosts.ANTHROPIC,
+            AvailableProviders.GOOGLE,
+            AvailableProviders.OPENAI,
+            AvailableProviders.ANTHROPIC,
         }
         and not config.api_key
     ):
@@ -52,7 +52,7 @@ def get_ai_service(config: AIConfig) -> AIServiceInterface:
             user_message="AI_API_KEY is required for the selected provider.",
         )
 
-    if provider == AvailableAiHosts.LOCAL and not config.base_url:
+    if provider == AvailableProviders.LOCAL and not config.base_url:
         raise ConfigurationError(
             "AI_BASE_URL is required for local AI providers.",
             user_message="AI_BASE_URL is required when AI_HOST=local.",
