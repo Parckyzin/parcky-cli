@@ -7,12 +7,14 @@ from pathlib import Path
 import typer
 
 from ai_cli.clients import get_ai_service
+from ai_cli.config import loader
 from ai_cli.config.paths import get_global_env_path, get_local_env_path
-from ai_cli.config.settings import AppConfig
+from ai_cli.config.settings import AIConfig, AppConfig, GitConfig
 from ai_cli.config.writer import (
     read_ai_provider,
     read_env_value,
     set_ai_provider,
+    set_config_value,
     set_env_value,
 )
 from ai_cli.core.exceptions import AICliError
@@ -21,6 +23,7 @@ from ..context import get_context
 from ..ui.console import console
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
+from ..ui.panels import config_settings_table
 from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.prompts import confirm, prompt
 
@@ -235,6 +238,7 @@ def register(app: typer.Typer) -> None:
 def _show_config_status(global_path: Path, local_path: Path) -> None:
     """Show current configuration status."""
     console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
+    config_snapshot = _load_config_snapshot()
 
     active_path = local_path if local_path.exists() else global_path
     active_label = "local" if local_path.exists() else "global"
@@ -274,3 +278,138 @@ def _show_config_status(global_path: Path, local_path: Path) -> None:
     console.print("  ai-cli setup              [dim]# Change API key[/dim]")
     console.print("  ai-cli config -s          [dim]# Select model (interactive)[/dim]")
     console.print("  ai-cli config -m MODEL    [dim]# Set model directly[/dim]")
+
+    rows = _build_config_rows(config_snapshot, local_path, global_path)
+    console.print("\n[bold]Editable Settings:[/bold]")
+    console.print(config_settings_table(rows))
+
+    _prompt_edit_setting(rows, active_path)
+
+
+def _build_config_rows(
+    config: tuple[AIConfig, GitConfig], local_path: Path, global_path: Path
+) -> list[tuple[str, str, str, str]]:
+    rows: list[tuple[str, str, str, str]] = []
+    ai_config, git_config = config
+
+    rows.append(
+        (
+            "ai_max_context_chars",
+            str(ai_config.max_context_chars),
+            loader.resolve_setting_source(
+                ["AI_MAX_CONTEXT_CHARS"], local_path, global_path
+            ),
+            "Max chars sent to AI context",
+        )
+    )
+    rows.append(
+        (
+            "git_max_diff_size",
+            str(git_config.max_diff_size),
+            loader.resolve_setting_source(
+                ["GIT_MAX_DIFF_SIZE"], local_path, global_path
+            ),
+            "Max diff size for AI analysis",
+        )
+    )
+    rows.append(
+        (
+            "ai_system_instruction",
+            _truncate(ai_config.system_instruction or "", 40),
+            loader.resolve_setting_source(
+                ["AI_SYSTEM_INSTRUCTION"], local_path, global_path
+            ),
+            "System prompt (read-only)",
+        )
+    )
+    rows.append(
+        (
+            "model",
+            ai_config.model_name,
+            loader.resolve_setting_source(
+                ["AI_MODEL", "MODEL_NAME"], local_path, global_path
+            ),
+            "AI model name (read-only)",
+        )
+    )
+    return rows
+
+
+def _prompt_edit_setting(rows: list[tuple[str, str, str, str]], path: Path) -> None:
+    key_map = {1: "ai_max_context_chars", 2: "git_max_diff_size"}
+    max_index = len(rows)
+    while True:
+        selection = prompt(
+            "Select setting to edit (1-2) or press Enter to exit"
+        ).strip()
+        if not selection:
+            return
+        if not selection.isdigit():
+            console.print("[red]Invalid choice. Enter a number.[/red]")
+            continue
+        index = int(selection)
+        if index < 1 or index > max_index:
+            console.print("[red]Invalid selection.[/red]")
+            continue
+        if index not in key_map:
+            console.print("[yellow]Selected setting is read-only.[/yellow]")
+            return
+
+        key = key_map[index]
+        if key == "ai_max_context_chars":
+            _edit_int_setting(
+                path,
+                env_key="AI_MAX_CONTEXT_CHARS",
+                label="ai_max_context_chars",
+                min_value=1000,
+            )
+            return
+        if key == "git_max_diff_size":
+            _edit_int_setting(
+                path,
+                env_key="GIT_MAX_DIFF_SIZE",
+                label="git_max_diff_size",
+                min_value=100,
+            )
+            return
+
+
+def _edit_int_setting(
+    path: Path,
+    *,
+    env_key: str,
+    label: str,
+    min_value: int,
+) -> None:
+    while True:
+        raw_value = prompt(f"Enter new value for {label} (min {min_value})").strip()
+        if not raw_value:
+            console.print("[yellow]No changes made.[/yellow]")
+            return
+        if not raw_value.isdigit():
+            console.print("[red]Please enter a valid integer.[/red]")
+            continue
+        value = int(raw_value)
+        if value < min_value:
+            console.print(
+                f"[red]{label} must be at least {min_value}.[/red]"
+            )
+            continue
+        set_config_value(path, env_key, value)
+        console.print(f"[bold green]✅ {label} updated.[/bold green]")
+        return
+
+
+def _truncate(value: str, max_len: int) -> str:
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 3] + "..."
+
+
+def _load_config_snapshot() -> tuple[AIConfig, GitConfig]:
+    settings_dict = loader.build_settings_dict()
+    ai_values = settings_dict.get("ai", {})
+    git_values = settings_dict.get("git", {})
+    ai_config = AIConfig.model_construct(**ai_values)
+    git_config = GitConfig.model_construct(**git_values)
+    return ai_config, git_config
