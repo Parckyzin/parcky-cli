@@ -7,7 +7,7 @@ from typing import Any
 from ai_cli.config import paths
 from ai_cli.config.profiles import apply_profile_overrides
 from ai_cli.config.writer import read_env_file
-from ai_cli.core.common.enums import AvailableAiHosts
+from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
 
@@ -81,14 +81,14 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     ai_provider_raw = _clean(normalized.get("AI_PROVIDER"))
     ai_host_raw = _clean(normalized.get("AI_HOST"))
     ai_provider_value = ai_provider_raw or ai_host_raw
-    ai_host_value = (ai_provider_value or AvailableAiHosts.GOOGLE.value).lower()
+    ai_host_value = (ai_provider_value or AvailableProviders.GOOGLE.value).lower()
 
     ai_model_value = _clean(normalized.get("AI_MODEL")) or _clean(
         normalized.get("MODEL_NAME")
     )
 
     ai_api_key_value = _clean(normalized.get("AI_API_KEY"))
-    if not ai_api_key_value and ai_host_value == AvailableAiHosts.GOOGLE.value:
+    if not ai_api_key_value and ai_host_value == AvailableProviders.GOOGLE.value:
         ai_api_key_value = _clean(normalized.get("GEMINI_API_KEY"))
 
     ai_values: dict[str, Any] = {"model_host": ai_host_value}

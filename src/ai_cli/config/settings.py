@@ -12,7 +12,7 @@ from pydantic_settings import (
 )
 
 from ai_cli.config import loader
-from ai_cli.core.common.enums import AvailableAiHosts
+from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
 DEFAULT_SYSTEM_INSTRUCTION = (
@@ -32,8 +32,8 @@ class AIConfig(BaseModel):
         default=None,
         description="Legacy AI provider name (compatibility field)",
     )
-    model_host: AvailableAiHosts = Field(
-        default=AvailableAiHosts.GOOGLE, description="AI model host service"
+    model_host: AvailableProviders = Field(
+        default=AvailableProviders.GOOGLE, description="AI model host service"
     )
     model_name: str = Field(
         default="gemini-2.0-flash",
@@ -84,9 +84,9 @@ class AIConfig(BaseModel):
     def validate_provider_settings(self):
         """Validate provider-specific requirements."""
         if self.model_host in {
-            AvailableAiHosts.GOOGLE,
-            AvailableAiHosts.OPENAI,
-            AvailableAiHosts.ANTHROPIC,
+            AvailableProviders.GOOGLE,
+            AvailableProviders.OPENAI,
+            AvailableProviders.ANTHROPIC,
         } and (not self.api_key or not self.api_key.strip()):
             raise ConfigurationError(
                 "AI_API_KEY is required for the selected AI provider.",
@@ -95,7 +95,7 @@ class AIConfig(BaseModel):
                     "Set AI_API_KEY in your configuration."
                 ),
             )
-        if self.model_host == AvailableAiHosts.LOCAL and (
+        if self.model_host == AvailableProviders.LOCAL and (
             not self.base_url or not self.base_url.strip()
         ):
             raise ConfigurationError(
