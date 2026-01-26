@@ -34,6 +34,26 @@ def load_settings_values() -> dict[str, str]:
     return values
 
 
+def resolve_setting_source(
+    keys: list[str],
+    local_path: Path,
+    global_path: Path,
+) -> str:
+    """Resolve the origin of a setting key with precedence env > local > global."""
+    upper_keys = {key.upper() for key in keys}
+    if any(key in os.environ for key in upper_keys):
+        return "env"
+    if local_path.exists():
+        local_values = read_env_file(local_path)
+        if any(key in local_values for key in upper_keys):
+            return "local"
+    if global_path.exists():
+        global_values = read_env_file(global_path)
+        if any(key in global_values for key in upper_keys):
+            return "global"
+    return "default"
+
+
 def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     """Build settings dict with nested AI/Git structures."""
     raw_env = values or load_settings_values()

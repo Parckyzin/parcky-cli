@@ -61,6 +61,11 @@ def set_ai_provider(path: Path, value: str) -> None:
     set_env_value(path, "AI_PROVIDER", value)
 
 
+def set_config_value(path: Path, key: str, value: str | int) -> None:
+    """Set a generic config value as a string."""
+    set_env_value(path, key, str(value))
+
+
 def _strip_quotes(value: str) -> str:
     if (value.startswith('"') and value.endswith('"')) or (
         value.startswith("'") and value.endswith("'")
