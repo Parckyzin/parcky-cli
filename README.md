@@ -41,10 +41,7 @@ Spend less time writing commits and PRs. Spend more time coding.
 ### Install
 
 ```bash
-git clone <repository-url>
-cd ai-cli
-uv sync
-uv tool install .
+uv tool install parcky-cli
 ```
 
 ### Configure
@@ -54,29 +51,29 @@ Get your API key at: https://makersuite.google.com/app/apikey
 Then configure your environment (example):
 
 ```bash
-export GEMINI_API_KEY="your_api_key_here"
+parcky-cli setup
 ```
 
 ### Common usage
 
 ```bash
 # AI-powered commit (with push)
-ai-cli smart-commit
+parcky-cli smart-commit
 
 # Commit without pushing
-ai-cli smart-commit --no-push
+parcky-cli smart-commit --no-push
 
 # Commit and create a PR
-ai-cli smart-commit --pr
+parcky-cli smart-commit --pr
 
 # Commit all changes grouped by context
-ai-cli smart-commit-all
+parcky-cli smart-commit-all
 
 # Create PR from current branch
-ai-cli create-pr
+parcky-cli create-pr
 
 # Create PR against another base
-ai-cli create-pr --base develop
+parcky-cli create-pr --base develop
 ```
 
 ---
