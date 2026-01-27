@@ -18,22 +18,17 @@ def _write_profiles(path: Path, content: str) -> None:
 
 
 def _set_env_paths(monkeypatch, tmp_path):
-    local_env = tmp_path / "local.env"
     global_env = tmp_path / "global.env"
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
 
 
 def test_profile_overrides_apply(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
-    local_profiles = tmp_path / "ai-profiles.json"
-    monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(
-        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
-    )
+    global_profiles = tmp_path / "ai-profiles.json"
+    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: global_profiles)
 
     _write_profiles(
-        local_profiles,
+        global_profiles,
         '{"team": {"AI_HOST": "openai", "AI_MODEL": "gpt-4o-mini", "AI_API_KEY": "env:OPENAI_KEY"}}',
     )
 
@@ -49,14 +44,11 @@ def test_profile_overrides_apply(monkeypatch, tmp_path):
 
 def test_profile_does_not_override_env(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
-    local_profiles = tmp_path / "ai-profiles.json"
-    monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(
-        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
-    )
+    global_profiles = tmp_path / "ai-profiles.json"
+    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: global_profiles)
 
     _write_profiles(
-        local_profiles,
+        global_profiles,
         '{"team": {"AI_MODEL": "profile-model", "AI_API_KEY": "profile-key"}}',
     )
 
@@ -73,9 +65,6 @@ def test_profile_does_not_override_env(monkeypatch, tmp_path):
 def test_missing_profile_raises(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        paths, "get_local_profiles_path", lambda: tmp_path / "none.json"
-    )
-    monkeypatch.setattr(
         paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
     )
 
@@ -87,14 +76,11 @@ def test_missing_profile_raises(monkeypatch, tmp_path):
 
 def test_env_reference_resolves(monkeypatch, tmp_path):
     _set_env_paths(monkeypatch, tmp_path)
-    local_profiles = tmp_path / "ai-profiles.json"
-    monkeypatch.setattr(paths, "get_local_profiles_path", lambda: local_profiles)
-    monkeypatch.setattr(
-        paths, "get_global_profiles_path", lambda: tmp_path / "none.json"
-    )
+    global_profiles = tmp_path / "ai-profiles.json"
+    monkeypatch.setattr(paths, "get_global_profiles_path", lambda: global_profiles)
 
     _write_profiles(
-        local_profiles,
+        global_profiles,
         '{"team": {"AI_API_KEY": "env:PROFILE_API_KEY"}}',
     )
 

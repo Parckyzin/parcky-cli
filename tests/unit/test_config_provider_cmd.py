@@ -10,14 +10,11 @@ from ai_cli.config import writer
 def test_config_provider_select_persists_and_clears_model(
     tmp_path, monkeypatch
 ) -> None:
-    local_path = tmp_path / ".env"
-    writer.set_env_value(local_path, "AI_MODEL", "old-model")
-    writer.set_env_value(local_path, "MODEL_NAME", "legacy-model")
+    global_path = tmp_path / "global.env"
+    writer.set_env_value(global_path, "AI_MODEL", "old-model")
+    writer.set_env_value(global_path, "MODEL_NAME", "legacy-model")
 
-    monkeypatch.setattr(config_cmd, "get_local_env_path", lambda: local_path)
-    monkeypatch.setattr(
-        config_cmd, "get_global_env_path", lambda: tmp_path / "global.env"
-    )
+    monkeypatch.setattr(config_cmd, "get_global_env_path", lambda: global_path)
     monkeypatch.setattr(
         config_cmd,
         "get_context",
@@ -29,15 +26,14 @@ def test_config_provider_select_persists_and_clears_model(
     result = runner.invoke(cli_main.app, ["config", "-p"])
 
     assert result.exit_code == 0
-    assert writer.read_env_value(local_path, "AI_PROVIDER") == "openai"
-    assert writer.read_env_value(local_path, "AI_MODEL") == ""
-    assert writer.read_env_value(local_path, "MODEL_NAME") == ""
+    assert writer.read_env_value(global_path, "AI_PROVIDER") == "openai"
+    assert writer.read_env_value(global_path, "AI_MODEL") == ""
+    assert writer.read_env_value(global_path, "MODEL_NAME") == ""
 
 
 def test_config_provider_cancel_does_not_persist(tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
 
-    monkeypatch.setattr(config_cmd, "get_local_env_path", lambda: tmp_path / ".env")
     monkeypatch.setattr(config_cmd, "get_global_env_path", lambda: global_path)
     monkeypatch.setattr(
         config_cmd,
