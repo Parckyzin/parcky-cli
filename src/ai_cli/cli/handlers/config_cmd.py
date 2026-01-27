@@ -8,7 +8,7 @@ import typer
 
 from ai_cli.clients import get_ai_service
 from ai_cli.config import loader
-from ai_cli.config.paths import get_global_env_path, get_local_env_path
+from ai_cli.config.paths import get_global_env_path
 from ai_cli.config.settings import AIConfig, AppConfig, GitConfig
 from ai_cli.config.writer import (
     read_ai_provider,
@@ -117,9 +117,6 @@ def register(app: typer.Typer) -> None:
         set_model: str = typer.Option(
             None, "--model", "-m", help="Set the AI model to use"
         ),
-        use_global: bool = typer.Option(
-            False, "--global", "-g", help="Apply changes to global config"
-        ),
         select_model: bool = typer.Option(
             False, "--select", "-s", help="Interactive model selection"
         ),
@@ -136,7 +133,6 @@ def register(app: typer.Typer) -> None:
             ai-cli config --select           # Interactive model selection
             ai-cli config --provider         # Interactive provider selection
             ai-cli config --model gemini-2.0-flash  # Change model directly
-            ai-cli config --model gemini-2.0-flash --global  # Change model globally
             ai-cli config provider           # Interactive provider selection
         """
         debug = False
@@ -144,11 +140,7 @@ def register(app: typer.Typer) -> None:
             ctx = get_context()
             debug = ctx.config.debug
             global_path = get_global_env_path()
-            local_path = get_local_env_path()
-
-            active_path = (
-                local_path if local_path.exists() and not use_global else global_path
-            )
+            active_path = global_path
 
             select_provider_flag = select_provider or action == "provider"
 
@@ -226,27 +218,24 @@ def register(app: typer.Typer) -> None:
                 console.print(f"[dim]   Saved to: {active_path}[/dim]")
                 return
 
-            _show_config_status(global_path, local_path)
+            _show_config_status(global_path)
         except AICliError as exc:
             exit_with_error(exc, debug=debug)
         except Exception as exc:
             exit_with_unexpected_error(exc, debug=debug)
 
 
-def _show_config_status(global_path: Path, local_path: Path) -> None:
+def _show_config_status(global_path: Path) -> None:
     """Show current configuration status."""
     console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
     config_snapshot = _load_config_snapshot()
 
-    active_path = local_path if local_path.exists() else global_path
-    active_label = "local" if local_path.exists() else "global"
-
-    api_key = read_env_value(active_path, "AI_API_KEY") or read_env_value(
-        active_path, "GEMINI_API_KEY"
+    api_key = read_env_value(global_path, "AI_API_KEY") or read_env_value(
+        global_path, "GEMINI_API_KEY"
     )
     model_name = (
-        read_env_value(active_path, "AI_MODEL")
-        or read_env_value(active_path, "MODEL_NAME")
+        read_env_value(global_path, "AI_MODEL")
+        or read_env_value(global_path, "MODEL_NAME")
         or "gemini-2.0-flash"
     )
 
@@ -258,7 +247,7 @@ def _show_config_status(global_path: Path, local_path: Path) -> None:
         console.print("  API Key: [red]Not set[/red]")
 
     console.print(f"  Model:   [cyan]{model_name}[/cyan]")
-    console.print(f"  Source:  [dim]{active_label} ({active_path})[/dim]")
+    console.print(f"  Source:  [dim]global ({global_path})[/dim]")
 
     console.print("\n[bold]Config Files:[/bold]")
     if global_path.exists():
@@ -266,26 +255,20 @@ def _show_config_status(global_path: Path, local_path: Path) -> None:
     else:
         console.print(f"  [dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
 
-    if local_path.exists():
-        console.print(f"  [green]✓[/green] Local:  {local_path.absolute()}")
-        console.print("    [dim](takes priority over global)[/dim]")
-    else:
-        console.print("[dim]  ✗ Local:  .env (not found)[/dim]")
-
     console.print("\n[dim]Commands:[/dim]")
     console.print("  ai-cli setup              [dim]# Change API key[/dim]")
     console.print("  ai-cli config -s          [dim]# Select model (interactive)[/dim]")
     console.print("  ai-cli config -m MODEL    [dim]# Set model directly[/dim]")
 
-    rows = _build_config_rows(config_snapshot, local_path, global_path)
+    rows = _build_config_rows(config_snapshot, global_path)
     console.print("\n[bold]Editable Settings:[/bold]")
     console.print(config_settings_table(rows))
 
-    _prompt_edit_setting(rows, active_path)
+    _prompt_edit_setting(rows, global_path)
 
 
 def _build_config_rows(
-    config: tuple[AIConfig, GitConfig], local_path: Path, global_path: Path
+    config: tuple[AIConfig, GitConfig], global_path: Path
 ) -> list[tuple[str, str, str, str]]:
     rows: list[tuple[str, str, str, str]] = []
     ai_config, git_config = config
@@ -294,9 +277,7 @@ def _build_config_rows(
         (
             "ai_max_context_chars",
             str(ai_config.max_context_chars),
-            loader.resolve_setting_source(
-                ["AI_MAX_CONTEXT_CHARS"], local_path, global_path
-            ),
+            loader.resolve_setting_source(["AI_MAX_CONTEXT_CHARS"], global_path),
             "Max chars sent to AI context",
         )
     )
@@ -304,9 +285,7 @@ def _build_config_rows(
         (
             "git_max_diff_size",
             str(git_config.max_diff_size),
-            loader.resolve_setting_source(
-                ["GIT_MAX_DIFF_SIZE"], local_path, global_path
-            ),
+            loader.resolve_setting_source(["GIT_MAX_DIFF_SIZE"], global_path),
             "Max diff size for AI analysis",
         )
     )
@@ -314,9 +293,7 @@ def _build_config_rows(
         (
             "ai_system_instruction",
             _truncate(ai_config.system_instruction or "", 40),
-            loader.resolve_setting_source(
-                ["AI_SYSTEM_INSTRUCTION"], local_path, global_path
-            ),
+            loader.resolve_setting_source(["AI_SYSTEM_INSTRUCTION"], global_path),
             "System prompt (read-only)",
         )
     )
@@ -324,9 +301,7 @@ def _build_config_rows(
         (
             "model",
             ai_config.model_name,
-            loader.resolve_setting_source(
-                ["AI_MODEL", "MODEL_NAME"], local_path, global_path
-            ),
+            loader.resolve_setting_source(["AI_MODEL", "MODEL_NAME"], global_path),
             "AI model name (read-only)",
         )
     )
