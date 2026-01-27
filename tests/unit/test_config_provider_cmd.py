@@ -20,7 +20,9 @@ def test_config_provider_select_persists_and_clears_model(
         "get_context",
         lambda: SimpleNamespace(config=SimpleNamespace(debug=False)),
     )
-    monkeypatch.setattr(config_cmd, "prompt_provider_select", lambda **_kwargs: "openai")
+    monkeypatch.setattr(
+        config_cmd, "prompt_provider_select", lambda **_kwargs: "openai"
+    )
 
     runner = CliRunner()
     result = runner.invoke(cli_main.app, ["config", "-p"])
