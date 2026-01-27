@@ -11,42 +11,27 @@ from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
 
-def get_env_paths() -> tuple[Path, Path]:
-    """Return local and global env paths."""
-    return paths.get_local_env_path(), paths.get_global_env_path()
-
-
 def load_dotenv_values() -> dict[str, str]:
-    """Load values from global and local .env files with correct precedence."""
-    local_path, global_path = get_env_paths()
+    """Load values from the global .env file."""
+    global_path = paths.get_global_env_path()
     values: dict[str, str] = {}
     if global_path.exists():
         values.update(read_env_file(global_path))
-    if local_path.exists():
-        values.update(read_env_file(local_path))
     return values
 
 
 def load_settings_values() -> dict[str, str]:
-    """Load settings with precedence: env > local .env > global .env."""
+    """Load settings with precedence: env > global .env."""
     values = load_dotenv_values()
     values.update(dict(os.environ))
     return values
 
 
-def resolve_setting_source(
-    keys: list[str],
-    local_path: Path,
-    global_path: Path,
-) -> str:
-    """Resolve the origin of a setting key with precedence env > local > global."""
+def resolve_setting_source(keys: list[str], global_path: Path) -> str:
+    """Resolve the origin of a setting key with precedence env > global."""
     upper_keys = {key.upper() for key in keys}
     if any(key in os.environ for key in upper_keys):
         return "env"
-    if local_path.exists():
-        local_values = read_env_file(local_path)
-        if any(key in local_values for key in upper_keys):
-            return "local"
     if global_path.exists():
         global_values = read_env_file(global_path)
         if any(key in global_values for key in upper_keys):
