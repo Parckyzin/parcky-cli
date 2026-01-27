@@ -41,15 +41,15 @@ flowchart LR
     rules["Rules:<br/>- No business logic in CLI<br/>- Pipelines = source of truth<br/>- No Rich/Typer in core/services/pipelines"]
     cli --- rules
 
-    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
+    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
 
     class cli cli;
     class svc service;
@@ -77,15 +77,15 @@ flowchart LR
     ai1 --> cli2["CLI preview + confirm"]
     cli2 --> git2["GitRepository: commit + optional push"]
 
-    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
+    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
+    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A, text-align:left;
 
     class u1 user;
     class cli1,cli2 cli;
@@ -108,15 +108,15 @@ flowchart LR
     ai2 --> cli4["CLI preview + confirm"]
     cli4 --> git4["GitRepository: commit + optional push"]
 
-    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
+    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
 
     class u2 user;
     class cli3,cli4 cli;
@@ -139,15 +139,15 @@ flowchart LR
     ai3 --> cli6["CLI preview + confirm"]
     cli6 --> gh1["GitHub PR service (gh)"]
 
-    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
+    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
 
     class u3 user;
     class cli5,cli6 cli;
@@ -171,15 +171,15 @@ flowchart LR
     mod -.-> cfgw
     edit -.-> cfgw
 
-    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A;
-    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A;
+    classDef user fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef cli fill:#F1F5F9,stroke:#94A3B8,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef service fill:#E0F2FE,stroke:#7DD3FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef pipeline fill:#E0E7FF,stroke:#A5B4FC,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef core fill:#ECFCCB,stroke:#A3E635,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef infra fill:#FFE4E6,stroke:#FDA4AF,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef config fill:#F5F3FF,stroke:#C4B5FD,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef external fill:#FFF7ED,stroke:#FDBA74,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
+    classDef note fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px,rx:8,ry:8,color:#0F172A,  text-align:left;
 
     class u4 user;
     class cli7 cli;
