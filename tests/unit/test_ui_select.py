@@ -1,12 +1,7 @@
 from rich.console import Console
 from rich.text import Text
 
-from ai_cli.cli.ui.components import (
-    SelectOption,
-    SelectState,
-    Theme,
-    handle_key,
-)
+from ai_cli.cli.ui.components import SelectOption, SelectState, Theme, handle_key
 from ai_cli.cli.ui.renderers.select_table import (
     TableColumnSpec,
     _compute_row_styles,
