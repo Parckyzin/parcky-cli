@@ -2,15 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rich.table import Table
+from rich.console import Console, Group
 from rich.text import Text
 
+from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.console import console
+from ai_cli.cli.ui.prompts import prompt
+from ai_cli.cli.ui.renderers.select_table import (
+    TableColumnSpec,
+    render_table,
+    strip_ansi,
+)
 from ai_cli.core.common.enums import AvailableProviders
 
-from .console import console
-from .prompts import prompt
-
 _MANUAL_LABEL = "Type manually..."
+_MANUAL_VALUE = "__manual__"
 
 
 @dataclass(frozen=True)
@@ -20,57 +26,68 @@ class ProviderOption:
     description: str
 
 
-@dataclass
-class _TuiState:
-    options: list[ProviderOption]
-    current: str | None
-    filter_text: str = ""
-    selected_index: int = 0
-
-    def visible_options(self) -> list[ProviderOption]:
-        return _filter_options(self.options, self.filter_text)
-
-    def labels(self) -> list[str]:
-        return [opt.label for opt in self.visible_options()] + [_MANUAL_LABEL]
-
-    def clamp_selection(self) -> None:
-        labels = self.labels()
-        if not labels:
-            self.selected_index = 0
-            return
-        self.selected_index = max(0, min(self.selected_index, len(labels) - 1))
-
-
-def select_provider(current: str | None = None) -> str | None:
-    """Select an AI provider with a prompt-toolkit UI and fallback."""
-    options = _get_provider_options()
+def select_provider(
+    current: str | None = None,
+    *,
+    providers: list[AvailableProviders] | None = None,
+    title: str | None = None,
+    allow_manual: bool = True,
+) -> str | None:
+    """Select an AI provider using the shared Select component."""
+    options = _get_provider_options(providers)
     if not options:
         return None
 
-    if current:
-        current = current.lower()
+    current_key = current.lower() if current else None
+    select_options: list[SelectOption[str]] = [
+        SelectOption(
+            value=option.key,
+            label=option.label,
+            description=option.description,
+            is_current=option.key == current_key,
+        )
+        for option in options
+    ]
+    if allow_manual:
+        select_options.append(
+            SelectOption(
+                value=_MANUAL_VALUE,
+                label=_MANUAL_LABEL,
+                description=None,
+            )
+        )
 
     try:
-        return _select_with_prompt_toolkit(options, current)
+        selection = _select_with_prompt_toolkit(
+            options, current_key, title or "Select AI Provider", allow_manual
+        )
     except ImportError:
         console.print(
             "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
         )
+        selection = _select_fallback_text(select_options, title or "Select AI Provider")
     except Exception as exc:
         console.print(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
         )
+        selection = _select_fallback_text(select_options, title or "Select AI Provider")
 
-    return _select_fallback_text(options, current)
+    if selection is None:
+        return None
+    if selection == _MANUAL_VALUE:
+        return _prompt_manual_provider()
+    return str(selection).lower()
 
 
 def _select_with_prompt_toolkit(
     options: list[ProviderOption],
     current: str | None,
+    title: str,
+    allow_manual: bool,
 ) -> str | None:
     try:
         from prompt_toolkit.application import Application
-        from prompt_toolkit.formatted_text import FormattedText
+        from prompt_toolkit.formatted_text import ANSI
         from prompt_toolkit.key_binding import KeyBindings
         from prompt_toolkit.layout import Layout
         from prompt_toolkit.layout.containers import Window
@@ -79,67 +96,55 @@ def _select_with_prompt_toolkit(
     except ImportError as exc:
         raise ImportError("prompt_toolkit not installed") from exc
 
-    state = _TuiState(options=options, current=current)
+    filter_text = ""
+    visible = _filter_options(options, filter_text)
+    state = SelectState.from_options(
+        _build_select_options(visible, current, allow_manual)
+    )
 
-    def _render() -> FormattedText:
-        state.clamp_selection()
-        visible = state.visible_options()
-        labels = state.labels()
-        text: list[tuple[str, str]] = []
-        text.append(("class:header", "Select AI Provider\n"))
-        if current:
-            text.append(("class:muted", f"Current: {current}\n"))
-        if state.filter_text:
-            text.append(("class:muted", f"Filter: {state.filter_text}\n"))
-        text.append(("", "\n"))
+    def _reset_options(new_visible: list[ProviderOption]) -> None:
+        state.options = _build_select_options(new_visible, current, allow_manual)
+        state.index = _first_enabled_index(state.options)
 
-        for idx, label in enumerate(labels):
-            is_selected = idx == state.selected_index
-            prefix = "-> " if is_selected else "   "
-            style = "class:selected" if is_selected else ""
-            if label == _MANUAL_LABEL:
-                text.append((style, f"{prefix}{label}\n"))
-                continue
-
-            option = visible[idx]
-            suffix = " (current)" if option.key == current else ""
-            row = f"{prefix}{option.label}{suffix}\n"
-            text.append((style, row))
-            text.append(("class:muted", f"     {option.description}\n"))
-
-        text.append(("", "\n"))
-        text.append(
-            ("class:muted", "Up/Down move • Enter select • Esc cancel • type to filter")
+    def _render() -> ANSI:
+        group = Group(
+            f"[bold]{title}[/bold]",
+            f"[dim]Current: {current}[/dim]" if current else "",
+            f"[dim]Filter: {filter_text}[/dim]" if filter_text else "",
+            render_table(state, show_index=False, columns=_provider_columns()),
+            "[dim]Up/Down move • Enter select • Esc cancel • type to filter[/dim]",
         )
-        return FormattedText(text)
+        temp_console = Console(width=console.width, color_system=console.color_system)
+        temp_console.begin_capture()
+        temp_console.print(group)
+        content = temp_console.end_capture()
+        return ANSI(content)
 
     kb = KeyBindings()
 
     @kb.add("up")
     def _move_up(event) -> None:
-        state.selected_index = max(0, state.selected_index - 1)
+        handle_key(state, "up")
         event.app.invalidate()
 
     @kb.add("down")
     def _move_down(event) -> None:
-        state.selected_index += 1
+        handle_key(state, "down")
         event.app.invalidate()
 
     @kb.add("enter")
     def _select(event) -> None:
-        labels = state.labels()
-        if not labels:
+        result = handle_key(state, "enter")
+        if result.action != "select":
+            return
+        selection = result.value
+        if selection is None:
             event.app.exit(result=None)
             return
-        selected = labels[state.selected_index]
-        if selected == _MANUAL_LABEL:
+        if selection == _MANUAL_VALUE:
             event.app.exit(result=_prompt_manual_provider())
             return
-        visible = state.visible_options()
-        if state.selected_index < len(visible):
-            event.app.exit(result=visible[state.selected_index].key)
-            return
-        event.app.exit(result=None)
+        event.app.exit(result=str(selection))
 
     @kb.add("escape")
     @kb.add("c-c")
@@ -149,36 +154,35 @@ def _select_with_prompt_toolkit(
     @kb.add("backspace")
     @kb.add("c-h")
     def _backspace(event) -> None:
-        if state.filter_text:
-            state.filter_text = state.filter_text[:-1]
-            state.selected_index = 0
+        nonlocal filter_text, visible
+        if filter_text:
+            filter_text = filter_text[:-1]
+            visible = _filter_options(options, filter_text)
+            _reset_options(visible)
             event.app.invalidate()
 
     @kb.add("c-l")
     def _clear(event) -> None:
-        state.filter_text = ""
-        state.selected_index = 0
+        nonlocal filter_text, visible
+        filter_text = ""
+        visible = _filter_options(options, filter_text)
+        _reset_options(visible)
         event.app.invalidate()
 
     @kb.add("<any>")
     def _filter(event) -> None:
+        nonlocal filter_text, visible
         data = event.data
         if not data or not data.isprintable():
             return
         if data in ("\n", "\r", "\x1b"):
             return
-        state.filter_text += data
-        state.selected_index = 0
+        filter_text += data
+        visible = _filter_options(options, filter_text)
+        _reset_options(visible)
         event.app.invalidate()
 
-    style = Style.from_dict(
-        {
-            "header": "bold",
-            "muted": "ansibrightblack",
-            "selected": "reverse",
-        }
-    )
-
+    style = Style.from_dict({"header": "bold", "muted": "ansibrightblack"})
     app = Application(
         layout=Layout(Window(FormattedTextControl(_render), wrap_lines=False)),
         key_bindings=kb,
@@ -189,32 +193,24 @@ def _select_with_prompt_toolkit(
 
 
 def _select_fallback_text(
-    options: list[ProviderOption],
-    current: str | None,
+    options: list[SelectOption[str]],
+    title: str,
 ) -> str | None:
-    table = Table(show_header=True, header_style="bold", title="Select AI Provider")
-    table.add_column("#", style="dim", width=4)
-    table.add_column("Provider")
-    table.add_column("Description")
-    table.add_column("Status", width=12)
-
-    for idx, option in enumerate(options, start=1):
-        status = "(current)" if option.key == current else ""
-        table.add_row(
-            str(idx),
-            Text(option.label, style="cyan"),
-            option.description,
-            status,
-        )
-
-    console.print(table)
+    state = SelectState.from_options(options)
+    console.print(
+        render_table(state, title=title, show_index=True, columns=_provider_columns())
+    )
     user_input = prompt("Enter number, provider name, or blank to cancel").strip()
     if not user_input or user_input.lower() in {"q", "quit"}:
         return None
     if user_input.isdigit():
         choice = int(user_input)
-        if 1 <= choice <= len(options):
-            return options[choice - 1].key
+        if 1 <= choice <= len(state.options):
+            selected = state.options[choice - 1].value
+            if selected == _MANUAL_VALUE:
+                return _prompt_manual_provider()
+            return str(selected)
+        return None
     return user_input.lower()
 
 
@@ -223,6 +219,72 @@ def _prompt_manual_provider() -> str | None:
     if not manual:
         return None
     return manual.lower()
+
+
+def _build_select_options(
+    options: list[ProviderOption],
+    current: str | None,
+    allow_manual: bool,
+) -> list[SelectOption[str]]:
+    select_options: list[SelectOption[str]] = [
+        SelectOption(
+            value=option.key,
+            label=option.label,
+            description=option.description,
+            is_current=option.key == current,
+        )
+        for option in options
+    ]
+    if allow_manual:
+        select_options.append(
+            SelectOption(
+                value=_MANUAL_VALUE,
+                label=_MANUAL_LABEL,
+                description=None,
+            )
+        )
+    return select_options
+
+
+def _first_enabled_index(options: list[SelectOption[str]]) -> int | None:
+    for idx, option in enumerate(options):
+        if not option.disabled:
+            return idx
+    return None
+
+
+def _provider_columns() -> list[TableColumnSpec[str]]:
+    return [
+        TableColumnSpec(
+            header="",
+            width=2,
+            render=lambda _opt, _state, _idx, styles, _theme: Text(
+                styles.marker, style=styles.marker_style
+            ),
+        ),
+        TableColumnSpec(
+            header="Provider",
+            render=lambda opt, _state, _idx, styles, _theme: Text(
+                strip_ansi(opt.label), style=styles.label_style
+            ),
+        ),
+        TableColumnSpec(
+            header="Description",
+            render=lambda opt, _state, _idx, styles, _theme: Text(
+                strip_ansi(opt.description or ""), style=styles.row_style
+            ),
+        ),
+        TableColumnSpec(
+            header="Status",
+            width=12,
+            render=lambda opt, _state, _idx, styles, theme: Text(
+                f"{theme.current_marker} {theme.current_label}"
+                if opt.is_current
+                else "",
+                style=styles.status_style,
+            ),
+        ),
+    ]
 
 
 def _filter_options(
@@ -238,18 +300,21 @@ def _filter_options(
     ]
 
 
-def _get_provider_options() -> list[ProviderOption]:
+def _get_provider_options(
+    providers: list[AvailableProviders] | None = None,
+) -> list[ProviderOption]:
     descriptions = {
         AvailableProviders.OPENAI: ("OpenAI", "OpenAI GPT models"),
         AvailableProviders.ANTHROPIC: ("Anthropic", "Claude models"),
         AvailableProviders.GOOGLE: ("Gemini", "Google Gemini models"),
         AvailableProviders.LOCAL: ("Local", "Local or self-hosted models"),
     }
+    selected = providers or list(AvailableProviders)
     return [
         ProviderOption(
-            key=provider,
+            key=provider.value,
             label=descriptions[provider][0],
             description=descriptions[provider][1],
         )
-        for provider in AvailableProviders
+        for provider in selected
     ]

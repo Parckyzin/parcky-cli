@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from ai_cli.config import paths
-from ai_cli.config.settings import AppConfig
+from ai_cli.config.settings import AppConfig, needs_init
 from ai_cli.config.writer import set_env_value
 from ai_cli.core.exceptions import ConfigurationError
 
@@ -18,15 +18,11 @@ def _write_env(path: Path, values: dict[str, str]) -> None:
         set_env_value(path, key, value)
 
 
-def test_env_precedence_env_over_local_and_global(monkeypatch, tmp_path):
+def test_env_precedence_env_over_global(monkeypatch, tmp_path):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
-
     _write_env(global_env, {"AI_MODEL": "global-model"})
-    _write_env(local_env, {"AI_MODEL": "local-model"})
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setenv("AI_MODEL", "env-model")
     monkeypatch.setenv("AI_API_KEY", "test-key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -37,15 +33,11 @@ def test_env_precedence_env_over_local_and_global(monkeypatch, tmp_path):
     assert config.ai.model_name == "env-model"
 
 
-def test_env_precedence_local_over_global(monkeypatch, tmp_path):
+def test_global_env_used_when_env_missing(monkeypatch, tmp_path):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
-
     _write_env(global_env, {"AI_MODEL": "global-model"})
-    _write_env(local_env, {"AI_MODEL": "local-model"})
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.delenv("AI_MODEL", raising=False)
     monkeypatch.setenv("AI_API_KEY", "test-key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -53,15 +45,32 @@ def test_env_precedence_local_over_global(monkeypatch, tmp_path):
 
     config = AppConfig.load()
 
-    assert config.ai.model_name == "local-model"
+    assert config.ai.model_name == "global-model"
+
+
+def test_local_env_ignored(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+    _write_env(global_env, {"AI_MODEL": "global-model"})
+
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_API_KEY", "test-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("AI_HOST", raising=False)
+    monkeypatch.delenv("AI_MODEL", raising=False)
+
+    monkeypatch.chdir(tmp_path)
+    local_env = tmp_path / ".env"
+    _write_env(local_env, {"AI_MODEL": "local-model"})
+
+    config = AppConfig.load()
+
+    assert config.ai.model_name == "global-model"
 
 
 def test_provider_requires_api_key(monkeypatch, tmp_path):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setenv("AI_HOST", "openai")
     monkeypatch.delenv("AI_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -74,10 +83,8 @@ def test_local_provider_allows_missing_api_key_but_requires_base_url(
     monkeypatch, tmp_path
 ):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setenv("AI_HOST", "local")
     monkeypatch.delenv("AI_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -94,10 +101,8 @@ def test_local_provider_allows_missing_api_key_but_requires_base_url(
 
 def test_ai_provider_preferred_over_ai_host(monkeypatch, tmp_path):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setenv("AI_PROVIDER", "openai")
     monkeypatch.setenv("AI_HOST", "google")
     monkeypatch.setenv("AI_API_KEY", "test-key")
@@ -111,10 +116,8 @@ def test_ai_provider_preferred_over_ai_host(monkeypatch, tmp_path):
 
 def test_ai_provider_falls_back_to_ai_host(monkeypatch, tmp_path):
     global_env = tmp_path / "global.env"
-    local_env = tmp_path / "local.env"
 
     monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
-    monkeypatch.setattr(paths, "get_local_env_path", lambda: local_env)
     monkeypatch.setenv("AI_HOST", "local")
     monkeypatch.setenv("AI_BASE_URL", "http://localhost:11434")
     monkeypatch.delenv("AI_PROVIDER", raising=False)
@@ -126,3 +129,42 @@ def test_ai_provider_falls_back_to_ai_host(monkeypatch, tmp_path):
     assert config.ai.ai_provider is None
     assert config.ai.ai_host == "local"
     assert config.ai.effective_provider == "local"
+
+
+def test_provider_specific_api_key_resolved(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+
+    config = AppConfig.load()
+
+    assert config.ai.api_key == "openai-key"
+
+
+def test_api_key_fallback_to_legacy(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("AI_API_KEY", "legacy-key")
+
+    config = AppConfig.load()
+
+    assert config.ai.api_key == "legacy-key"
+
+
+def test_needs_init_when_missing_provider_model_key(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    monkeypatch.delenv("AI_HOST", raising=False)
+    monkeypatch.delenv("AI_MODEL", raising=False)
+    monkeypatch.delenv("MODEL_NAME", raising=False)
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert needs_init() is True

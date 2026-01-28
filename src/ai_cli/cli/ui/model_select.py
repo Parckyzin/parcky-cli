@@ -3,15 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Literal
 
-from rich.table import Table
+from rich.console import Console, Group
 from rich.text import Text
 
-from .console import console
-from .prompts import prompt
-from .provider_select import select_provider
+from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.console import console
+from ai_cli.cli.ui.prompts import prompt
+from ai_cli.cli.ui.provider_select import select_provider
+from ai_cli.cli.ui.renderers.select_table import (
+    TableColumnSpec,
+    render_table,
+    strip_ansi,
+)
 
 _MANUAL_LABEL = "✍ Type manually..."
 _CHANGE_PROVIDER_LABEL = "Change provider"
+_ACTION_MANUAL = object()
+_ACTION_CHANGE_PROVIDER = object()
 
 SelectionAction = Literal["model", "change_provider", "cancel"]
 
@@ -20,33 +28,6 @@ SelectionAction = Literal["model", "change_provider", "cancel"]
 class SelectionResult:
     action: SelectionAction
     value: str | None = None
-
-
-@dataclass
-class _TuiState:
-    models: list[str]
-    current_model: str
-    show_change_provider: bool
-    filter_text: str = ""
-    selected_index: int = 0
-
-    def filtered_models(self) -> list[str]:
-        return _filter_models(self.models, self.filter_text)
-
-    def options(self, filtered: list[str] | None = None) -> list[str]:
-        base = filtered if filtered is not None else self.filtered_models()
-        options: list[str] = []
-        if self.show_change_provider:
-            options.append(_CHANGE_PROVIDER_LABEL)
-        options.extend(base)
-        options.append(_MANUAL_LABEL)
-        return options
-
-    def clamp_selection(self, options_len: int) -> None:
-        if options_len <= 0:
-            self.selected_index = 0
-            return
-        self.selected_index = max(0, min(self.selected_index, options_len - 1))
 
 
 def interactive_model_select(
@@ -112,7 +93,7 @@ def _select_with_prompt_toolkit(
 ) -> SelectionResult:
     try:
         from prompt_toolkit.application import Application
-        from prompt_toolkit.formatted_text import FormattedText
+        from prompt_toolkit.formatted_text import ANSI
         from prompt_toolkit.key_binding import KeyBindings
         from prompt_toolkit.layout import Layout
         from prompt_toolkit.layout.containers import Window
@@ -121,100 +102,71 @@ def _select_with_prompt_toolkit(
     except ImportError as exc:
         raise ImportError("prompt_toolkit not installed") from exc
 
-    state = _TuiState(
-        models=models,
-        current_model=current_model,
-        show_change_provider=show_change_provider,
+    filter_text = ""
+    filtered = _filter_models(models, filter_text)
+    state = SelectState.from_options(
+        _build_options(filtered, current_model, show_change_provider)
     )
 
-    def _render() -> FormattedText:
-        filtered = state.filtered_models()
-        options = state.options(filtered)
-        state.clamp_selection(len(options))
-
-        text: list[tuple[str, str]] = []
-        text.append(("class:header", "Select AI Model\n"))
-        text.append(("class:muted", f"Current: {current_model}\n"))
-        text.append(("class:muted", f"Matches: {len(filtered)}\n"))
-        if state.filter_text:
-            text.append(("class:muted", f"Filter: {state.filter_text}\n"))
-        text.append(("", "\n"))
-
-        if not filtered and state.filter_text:
-            text.append(
-                ("class:warning", "No matches. Press Ctrl+U to clear filter.\n")
-            )
-            text.append(("", "\n"))
-
-        for idx, model in enumerate(options):
-            is_selected = idx == state.selected_index
-            prefix = "➤ " if is_selected else "  "
-
-            if model == _MANUAL_LABEL:
-                line_style = "class:manual"
-            elif model == _CHANGE_PROVIDER_LABEL:
-                line_style = "class:provider"
-            elif model == current_model:
-                line_style = "class:current"
-            else:
-                line_style = "class:item"
-
-            if is_selected:
-                line_style = f"{line_style} class:selected"
-
-            status = "  ● current" if model == current_model else ""
-            text.append((line_style, f"{prefix}{model}{status}\n"))
-
-        text.append(("", "\n"))
-        text.append(
-            (
-                "class:muted",
-                "↑/↓ move • Enter select • Esc cancel • '/' filter • Ctrl+U clear",
-            )
+    def _reset_options(new_filtered: list[str]) -> None:
+        state.options = _build_options(
+            new_filtered, current_model, show_change_provider
         )
-        return FormattedText(text)
+        state.index = _first_enabled_index(state.options)
+
+    def _render() -> ANSI:
+        group = Group(
+            "[bold]Select AI Model[/bold]",
+            f"[dim]Current: {current_model}[/dim]",
+            f"[dim]Matches: {len(filtered)}[/dim]",
+            f"[dim]Filter: {filter_text}[/dim]" if filter_text else "",
+            (
+                "[yellow]No matches. Press Ctrl+U to clear filter.[/yellow]"
+                if not filtered and filter_text
+                else ""
+            ),
+            render_table(state, show_index=False, columns=_model_columns()),
+            "[dim]↑/↓ move • Enter select • Esc cancel • '/' filter • Ctrl+U clear[/dim]",
+        )
+
+        temp_console = Console(width=console.width, color_system=console.color_system)
+        temp_console.begin_capture()
+        temp_console.print(group)
+        content = temp_console.end_capture()
+        return ANSI(content)
 
     kb = KeyBindings()
 
     @kb.add("up")
     def _move_up(event) -> None:
-        state.selected_index = max(0, state.selected_index - 1)
+        handle_key(state, "up")
         event.app.invalidate()
 
     @kb.add("down")
     def _move_down(event) -> None:
-        filtered = state.filtered_models()
-        options_len = len(state.options(filtered))
-        if options_len <= 0:
-            state.selected_index = 0
-        else:
-            state.selected_index = min(state.selected_index + 1, options_len - 1)
+        handle_key(state, "down")
         event.app.invalidate()
 
     @kb.add("enter")
     def _select(event) -> None:
-        filtered = state.filtered_models()
-        options = state.options(filtered)
-        if not options:
+        result = handle_key(state, "enter")
+        if result.action != "select":
+            return
+        selection = result.value
+        if selection is None:
             event.app.exit(result=SelectionResult(action="cancel"))
             return
-
-        state.clamp_selection(len(options))
-        selected = options[state.selected_index]
-
-        if selected == _CHANGE_PROVIDER_LABEL:
+        if selection is _ACTION_CHANGE_PROVIDER:
             event.app.exit(result=SelectionResult(action="change_provider"))
             return
-
-        if selected == _MANUAL_LABEL:
+        if selection is _ACTION_MANUAL:
             manual = _prompt_manual_model()
             if manual:
                 event.app.exit(result=SelectionResult(action="model", value=manual))
             else:
                 event.app.exit(result=SelectionResult(action="cancel"))
             return
-
-        event.app.exit(result=SelectionResult(action="model", value=selected))
+        event.app.exit(result=SelectionResult(action="model", value=str(selection)))
 
     @kb.add("escape")
     @kb.add("c-c")
@@ -228,41 +180,35 @@ def _select_with_prompt_toolkit(
     @kb.add("backspace")
     @kb.add("c-h")
     def _backspace(event) -> None:
-        if state.filter_text:
-            state.filter_text = state.filter_text[:-1]
-            state.selected_index = 0
+        nonlocal filter_text, filtered
+        if filter_text:
+            filter_text = filter_text[:-1]
+            filtered = _filter_models(models, filter_text)
+            _reset_options(filtered)
             event.app.invalidate()
 
     @kb.add("c-u")
     def _clear_filter(event) -> None:
-        state.filter_text = ""
-        state.selected_index = 0
+        nonlocal filter_text, filtered
+        filter_text = ""
+        filtered = _filter_models(models, filter_text)
+        _reset_options(filtered)
         event.app.invalidate()
 
     @kb.add("<any>")
     def _type_to_filter(event) -> None:
+        nonlocal filter_text, filtered
         data = event.data
         if not data or not data.isprintable():
             return
         if data in ("\n", "\r", "\x1b", "\t"):
             return
-        state.filter_text += data
-        state.selected_index = 0
+        filter_text += data
+        filtered = _filter_models(models, filter_text)
+        _reset_options(filtered)
         event.app.invalidate()
 
-    style = Style.from_dict(
-        {
-            "header": "bold",
-            "muted": "ansibrightblack",
-            "warning": "ansiyellow",
-            "item": "",
-            "current": "ansigreen",
-            "manual": "ansiyellow",
-            "provider": "ansicyan",
-            "selected": "reverse",
-        }
-    )
-
+    style = Style.from_dict({"header": "bold", "muted": "ansibrightblack"})
     control = FormattedTextControl(text=_render)
     app = Application(
         layout=Layout(Window(control, wrap_lines=False)),
@@ -288,29 +234,18 @@ def _select_fallback_text(
             return SelectionResult(action="model", value=manual)
         return SelectionResult(action="cancel")
 
-    table = Table(show_header=True, header_style="bold", title="Select AI Model")
-    table.add_column("#", style="dim", width=4)
-    table.add_column("Model")
-    table.add_column("Status", width=12)
-
-    display: list[str] = []
-    if show_change_provider:
-        display.append(_CHANGE_PROVIDER_LABEL)
-    display.extend(models[:20])
-    display.append(_MANUAL_LABEL)
-
-    for idx, model in enumerate(display, start=1):
-        if model == _CHANGE_PROVIDER_LABEL:
-            table.add_row(str(idx), Text(model, style="cyan"), "")
-            continue
-        if model == _MANUAL_LABEL:
-            table.add_row(str(idx), Text(model, style="yellow"), "")
-            continue
-        status = "● current" if model == current_model else ""
-        style = "green" if model == current_model else "cyan"
-        table.add_row(str(idx), Text(model, style=style), status)
-
-    console.print(table)
+    display = models[:20]
+    state = SelectState.from_options(
+        _build_options(display, current_model, show_change_provider)
+    )
+    console.print(
+        render_table(
+            state,
+            title="Select AI Model",
+            show_index=True,
+            columns=_model_columns(),
+        )
+    )
     if len(models) > 20:
         console.print(f"[dim]Showing first 20 of {len(models)} models.[/dim]")
 
@@ -326,16 +261,16 @@ def _select_fallback_text(
 
     if user_input.isdigit():
         choice = int(user_input)
-        if 1 <= choice <= len(display):
-            selected = display[choice - 1]
-            if selected == _CHANGE_PROVIDER_LABEL:
+        if 1 <= choice <= len(state.options):
+            selected = state.options[choice - 1].value
+            if selected is _ACTION_CHANGE_PROVIDER:
                 return SelectionResult(action="change_provider")
-            if selected == _MANUAL_LABEL:
+            if selected is _ACTION_MANUAL:
                 manual = _prompt_manual_model()
                 if manual:
                     return SelectionResult(action="model", value=manual)
                 return SelectionResult(action="cancel")
-            return SelectionResult(action="model", value=selected)
+            return SelectionResult(action="model", value=str(selected))
         return SelectionResult(action="cancel")
 
     return SelectionResult(action="model", value=user_input)
@@ -351,3 +286,71 @@ def _filter_models(models: list[str], filter_text: str) -> list[str]:
         return list(models)
     needle = filter_text.casefold()
     return [model for model in models if needle in model.casefold()]
+
+
+def _build_options(
+    models: list[str],
+    current_model: str,
+    show_change_provider: bool,
+) -> list[SelectOption[object]]:
+    options: list[SelectOption[object]] = []
+    if show_change_provider:
+        options.append(
+            SelectOption(
+                value=_ACTION_CHANGE_PROVIDER,
+                label=_CHANGE_PROVIDER_LABEL,
+                description=None,
+            )
+        )
+    for model in models:
+        options.append(
+            SelectOption(
+                value=model,
+                label=model,
+                description=None,
+                is_current=model == current_model,
+            )
+        )
+    options.append(
+        SelectOption(
+            value=_ACTION_MANUAL,
+            label=_MANUAL_LABEL,
+            description=None,
+        )
+    )
+    return options
+
+
+def _first_enabled_index(options: list[SelectOption[object]]) -> int | None:
+    for idx, option in enumerate(options):
+        if not option.disabled:
+            return idx
+    return None
+
+
+def _model_columns() -> list[TableColumnSpec[object]]:
+    return [
+        TableColumnSpec(
+            header="",
+            width=2,
+            render=lambda _opt, _state, _idx, styles, _theme: Text(
+                styles.marker, style=styles.marker_style
+            ),
+        ),
+        TableColumnSpec(
+            header="Model",
+            render=lambda opt, _state, _idx, styles, _theme: Text(
+                strip_ansi(opt.label), style=styles.label_style
+            ),
+        ),
+        TableColumnSpec(
+            header="Status",
+            width=10,
+            render=lambda opt, _state, _idx, styles, theme: Text(
+                f"{theme.current_marker} {theme.current_label}"
+                if opt.is_current
+                else "",
+                style=styles.status_style,
+            ),
+        ),
+    ]
