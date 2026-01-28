@@ -77,13 +77,16 @@ def test_config_edit_ai_max_context_chars_persists(tmp_path, monkeypatch) -> Non
     _patch_needs_init(monkeypatch, False)
 
     entry = next(
-        e for e in config_cmd.list_config_entries(global_path)
+        e
+        for e in config_cmd.list_config_entries(global_path)
         if e.key == "ai_max_context_chars"
     )
     categories = iter(["AI limits", "Exit"])
     selections = iter([entry, None])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
-    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
+    monkeypatch.setattr(
+        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+    )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "12000")
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
@@ -102,13 +105,16 @@ def test_config_edit_cancel_does_not_persist(tmp_path, monkeypatch) -> None:
     _patch_needs_init(monkeypatch, False)
 
     entry = next(
-        e for e in config_cmd.list_config_entries(global_path)
+        e
+        for e in config_cmd.list_config_entries(global_path)
         if e.key == "git_max_diff_size"
     )
     categories = iter(["Git limits", "Exit"])
     selections = iter([entry, None])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
-    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
+    monkeypatch.setattr(
+        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+    )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "120")
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: False)
 
@@ -127,14 +133,17 @@ def test_config_edit_rejects_invalid_value(tmp_path, monkeypatch) -> None:
     _patch_needs_init(monkeypatch, False)
 
     entry = next(
-        e for e in config_cmd.list_config_entries(global_path)
+        e
+        for e in config_cmd.list_config_entries(global_path)
         if e.key == "git_max_diff_size"
     )
     categories = iter(["Git limits", "Exit"])
     selections = iter([entry, None])
     inputs = iter(["0", ""])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
-    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
+    monkeypatch.setattr(
+        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+    )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: next(inputs))
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
@@ -177,19 +186,17 @@ def test_config_init_persists_values(tmp_path, monkeypatch) -> None:
     _patch_needs_init(monkeypatch, False)
 
     def _set_keys(path):
-        config_cmd.set_provider_api_key(path, config_cmd.AvailableProviders.OPENAI, "key")
+        config_cmd.set_provider_api_key(
+            path, config_cmd.AvailableProviders.OPENAI, "key"
+        )
 
     def _configure(path):
         _set_keys(path)
         return True
 
     monkeypatch.setattr(config_cmd, "_configure_provider_keys", _configure)
-    monkeypatch.setattr(
-        config_cmd, "_select_active_provider", lambda _path: "openai"
-    )
-    monkeypatch.setattr(
-        config_cmd, "_select_model_name", lambda _provider: "gpt-4o"
-    )
+    monkeypatch.setattr(config_cmd, "_select_active_provider", lambda _path: "openai")
+    monkeypatch.setattr(config_cmd, "_select_model_name", lambda _provider: "gpt-4o")
     monkeypatch.setattr(
         config_cmd,
         "_prompt_int_value",
@@ -217,7 +224,7 @@ def test_init_filters_ready_providers(tmp_path, monkeypatch) -> None:
 
     captured: dict[str, list[str]] = {}
 
-    def _capture_provider_select(*, current=None, providers=None, **_kwargs):
+    def _capture_provider_select(*, _current=None, providers=None, **_kwargs):
         captured["providers"] = [p.value for p in (providers or [])]
         return None
 

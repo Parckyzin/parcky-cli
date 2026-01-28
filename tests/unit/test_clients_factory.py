@@ -11,9 +11,8 @@ from ai_cli.clients.anthropic import AnthropicAIService
 from ai_cli.clients.gemini import GeminiAIService
 from ai_cli.clients.local import LocalAIService
 from ai_cli.clients.openai import OpenAIAIService
-from ai_cli.config.settings import AIConfig
 from ai_cli.config import paths
-from ai_cli.config.settings import AppConfig
+from ai_cli.config.settings import AIConfig, AppConfig
 from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
