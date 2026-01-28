@@ -38,3 +38,7 @@ class AvailableProviders(StrEnum):
         return self not in {
             AvailableProviders.LOCAL,
         }
+
+    def env_api_key_name(self) -> str:
+        """Return the provider-specific API key env var name."""
+        return f"{self.value.upper()}_API_KEY"
