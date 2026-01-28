@@ -3,12 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from rich.align import Align
 from rich.console import Group, RenderableType
-from rich.panel import Panel
 from rich.text import Text
 
 from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
+from ai_cli.cli.ui.renderers.frame import render_frame
 
 ModalVariant = Literal["info", "warn", "error", "success"]
 
@@ -34,18 +33,17 @@ def render_modal(
     theme: Theme = DEFAULT_THEME,
 ) -> RenderableType:
     icon, variant_style = _variant_tokens(variant, theme)
-    title_style = _combine_styles(variant_style, theme.modal_title_style)
-
-    title_text = Text(f"{icon} {title}".strip(), style=title_style)
+    title_text = f"{icon} {title}".strip()
     body_text = Text(body, style=theme.modal_body_style)
     actions_text = _render_actions(state, theme)
 
-    panel = Panel(
-        Group(title_text, body_text, actions_text),
-        border_style=variant_style or theme.modal_border_style,
-        padding=(1, 2),
+    return render_frame(
+        title=title_text,
+        body=Group(body_text, actions_text),
+        variant=variant,
+        theme=theme,
+        align=True,
     )
-    return Align.center(panel, vertical="middle")
 
 
 def _render_actions(state: ModalState, theme: Theme) -> Text:
@@ -71,7 +69,3 @@ def _variant_tokens(variant: ModalVariant, theme: Theme) -> tuple[str, str]:
     if variant == "success":
         return theme.modal_success_icon, theme.modal_success_style
     return theme.modal_info_icon, theme.modal_info_style
-
-
-def _combine_styles(*styles: str) -> str:
-    return " ".join(style for style in styles if style)
