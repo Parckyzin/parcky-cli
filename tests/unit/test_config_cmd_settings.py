@@ -276,6 +276,53 @@ def test_init_cancel_stops_flow(tmp_path, monkeypatch) -> None:
     assert called["provider"] is False
 
 
+def test_manage_keys_updates_status(tmp_path, monkeypatch) -> None:
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+
+    _patch_paths(monkeypatch, global_path)
+
+    selections: list[list[str]] = []
+    calls = {"count": 0}
+
+    def _fake_select(options, _title):
+        selections.append([opt.description or "" for opt in options])
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return config_cmd.AvailableProviders.OPENAI
+        return "Continue"
+
+    monkeypatch.setattr(config_cmd, "_select_option", _fake_select)
+    monkeypatch.setattr(config_cmd, "secret_prompt", lambda _prompt: "key-123")
+
+    assert config_cmd._configure_provider_keys(global_path) is True
+    assert read_env_value(global_path, "OPENAI_API_KEY") == "key-123"
+    assert any("API key set" in desc for desc in selections[-1])
+
+
+def test_edit_entry_saves_and_reports(capsys, tmp_path, monkeypatch) -> None:
+    entry = config_cmd.ConfigEntry(
+        key="ai_max_context_chars",
+        value="1000",
+        editable=True,
+        source="global",
+        description="Max chars sent to AI context",
+        category="AI limits",
+        env_key="AI_MAX_CONTEXT_CHARS",
+        min_value=1000,
+    )
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+
+    monkeypatch.setattr(config_cmd, "_prompt_int_value_with_frame", lambda **_k: 2000)
+    monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_k: True)
+
+    config_cmd._edit_entry(entry, global_path)
+    output = capsys.readouterr().out
+    assert "updated" in output.lower()
+    assert read_env_value(global_path, "AI_MAX_CONTEXT_CHARS") == "2000"
+
+
 def test_select_model_persists_value(tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
     global_path.write_text("")
