@@ -11,7 +11,8 @@ from ai_cli.clients.anthropic import AnthropicAIService
 from ai_cli.clients.gemini import GeminiAIService
 from ai_cli.clients.local import LocalAIService
 from ai_cli.clients.openai import OpenAIAIService
-from ai_cli.config.settings import AIConfig
+from ai_cli.config import paths
+from ai_cli.config.settings import AIConfig, AppConfig
 from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import ConfigurationError
 
@@ -65,3 +66,17 @@ def test_get_ai_service_requires_base_url_for_local():
     )
     with pytest.raises(ConfigurationError):
         get_ai_service(config)
+
+
+def test_factory_uses_resolved_api_key(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+
+    config = AppConfig.load()
+    service = get_ai_service(config.ai)
+
+    assert isinstance(service, OpenAIAIService)
+    assert service.config.api_key == "openai-key"

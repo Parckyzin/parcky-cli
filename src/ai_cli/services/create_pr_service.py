@@ -162,7 +162,7 @@ class CreatePRService:
 
             pr = self.generate_pr_content(branch_info)
 
-            self.pr_service.create_pull_request(pr)
+            self.pr_service.create_pull_request(pr, base_branch)
 
             return CreatePRResult(
                 success=True,

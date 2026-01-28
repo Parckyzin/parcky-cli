@@ -80,7 +80,8 @@ class SmartCommitService:
             raise ValueError("PR service not configured")
 
         pr = self.ai_service.generate_pull_request(diff, commit_msg)
-        return self.pr_service.create_pull_request(pr)
+        base_branch = self.git_repo.get_default_branch()
+        return self.pr_service.create_pull_request(pr, base_branch)
 
     def execute_smart_commit(
         self, auto_push: bool = True, create_pr: bool = False
