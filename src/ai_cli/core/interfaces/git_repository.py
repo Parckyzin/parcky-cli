@@ -91,3 +91,8 @@ class GitRepositoryInterface(ABC):
     def unstage_all(self) -> bool:
         """Unstage all staged files."""
         pass
+
+    @abstractmethod
+    def get_default_branch(self) -> str:
+        """Get the default branch name."""
+        pass
