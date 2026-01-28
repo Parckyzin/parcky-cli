@@ -129,7 +129,11 @@ def register(app: typer.Typer) -> None:
             None, "--model", "-m", help="Set the AI model to use"
         ),
         select_model: bool = typer.Option(
-            False, "--select", "-s", help="Interactive model selection"
+            False,
+            "--select-model",
+            "--select",
+            "-s",
+            help="Interactive model selection (aliases: --select, -s)",
         ),
         select_provider: bool = typer.Option(
             False, "--provider", "-p", help="Select AI provider"
@@ -187,7 +191,11 @@ def register(app: typer.Typer) -> None:
                 console.print(f"[dim]   Saved to: {global_path}[/dim]")
                 return
 
-            if set_model or select_model or action:
+            if select_model:
+                _run_select_model(global_path)
+                return
+
+            if set_model or action:
                 console.print(
                     "[yellow]Config is read-only. Use parcky-cli config -e to edit.[/yellow]"
                 )
@@ -287,6 +295,63 @@ def _run_init_flow(global_path: Path) -> None:
     console.print("[bold green]✅ Configuration saved.[/bold green]")
 
 
+def _run_select_model(global_path: Path) -> None:
+    provider_value = read_ai_provider(global_path)
+    if not provider_value:
+        console.print(
+            "[yellow]No provider configured. Run: parcky-cli config init[/yellow]"
+        )
+        return
+
+    try:
+        provider = AvailableProviders(provider_value)
+    except ValueError:
+        console.print(
+            "[yellow]Unknown provider configured. Run: parcky-cli config init[/yellow]"
+        )
+        return
+
+    api_key = _resolve_provider_api_key(provider)
+    if provider.needs_api_key() and not api_key:
+        console.print(
+            f"[yellow]No API key set for {provider.value}. "
+            "Run: parcky-cli config init[/yellow]"
+        )
+        return
+
+    catalog = ModelCatalog()
+    try:
+        models = catalog.list_models(provider, api_key)
+    except AICliError as exc:
+        console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
+        models = []
+
+    current_model = (
+        read_env_value(global_path, "AI_MODEL")
+        or read_env_value(global_path, "MODEL_NAME")
+        or ""
+    )
+
+    selected: list[str] = []
+
+    def _on_select(model: str) -> None:
+        selected.append(model)
+        set_env_value(global_path, "AI_MODEL", model)
+
+    interactive_model_select(
+        models,
+        current_model,
+        _on_select,
+        current_provider=provider,
+        on_change_provider=None,
+    )
+    if selected:
+        console.print(
+            f"[bold green]✅ Model set to:[/bold green] "
+            f"{selected[0]}"
+        )
+
+
 def _configure_provider_keys(global_path: Path) -> bool:
     providers = [p for p in AvailableProviders if p.needs_api_key()]
     while True:
@@ -296,7 +361,7 @@ def _configure_provider_keys(global_path: Path) -> bool:
             options.append(
                 SelectOption(
                     value=provider,
-                    label=provider.value,
+                    label=provider,
                     description=f"API key {status}",
                 )
             )
