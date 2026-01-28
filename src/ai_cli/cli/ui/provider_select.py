@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.text import Text
 
 from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
 from ai_cli.cli.ui.console import console
 from ai_cli.cli.ui.prompts import prompt
+from ai_cli.cli.ui.renderers.frame import SELECT_FILTER_FOOTER, render_frame
 from ai_cli.cli.ui.renderers.select_table import (
     TableColumnSpec,
     render_table,
@@ -107,16 +109,18 @@ def _select_with_prompt_toolkit(
         state.index = _first_enabled_index(state.options)
 
     def _render() -> ANSI:
-        group = Group(
-            f"[bold]{title}[/bold]",
-            f"[dim]Current: {current}[/dim]" if current else "",
-            f"[dim]Filter: {filter_text}[/dim]" if filter_text else "",
-            render_table(state, show_index=False, columns=_provider_columns()),
-            "[dim]Up/Down move • Enter select • Esc cancel • type to filter[/dim]",
-        )
         temp_console = Console(width=console.width, color_system=console.color_system)
         temp_console.begin_capture()
-        temp_console.print(group)
+        temp_console.print(
+            _render_provider_frame(
+                title=title,
+                current=current,
+                filter_text=filter_text,
+                state=state,
+                theme=DEFAULT_THEME,
+                align=True,
+            )
+        )
         content = temp_console.end_capture()
         return ANSI(content)
 
@@ -198,7 +202,15 @@ def _select_fallback_text(
 ) -> str | None:
     state = SelectState.from_options(options)
     console.print(
-        render_table(state, title=title, show_index=True, columns=_provider_columns())
+        _render_provider_frame(
+            title=title,
+            current=None,
+            filter_text="",
+            state=state,
+            theme=DEFAULT_THEME,
+            show_index=True,
+            align=False,
+        )
     )
     user_input = prompt("Enter number, provider name, or blank to cancel").strip()
     if not user_input or user_input.lower() in {"q", "quit"}:
@@ -298,6 +310,33 @@ def _filter_options(
         for option in options
         if needle in option.label.casefold() or needle in option.description.casefold()
     ]
+
+
+def _render_provider_frame(
+    *,
+    title: str,
+    current: str | None,
+    filter_text: str,
+    state: SelectState[str],
+    theme: Theme,
+    show_index: bool = False,
+    align: bool = False,
+) -> RenderableType:
+    body: list[RenderableType] = []
+    if current:
+        body.append(Text(f"Current: {current}", style=theme.muted_style))
+    if filter_text:
+        body.append(Text(f"Filter: {filter_text}", style=theme.muted_style))
+    body.append(
+        render_table(state, show_index=show_index, columns=_provider_columns())
+    )
+    return render_frame(
+        title=title,
+        body=Group(*body),
+        footer=SELECT_FILTER_FOOTER,
+        theme=theme,
+        align=align,
+    )
 
 
 def _get_provider_options(

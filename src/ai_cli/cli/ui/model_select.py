@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Literal
 
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.text import Text
 
 from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
 from ai_cli.cli.ui.console import console
 from ai_cli.cli.ui.prompts import prompt
 from ai_cli.cli.ui.provider_select import select_provider
+from ai_cli.cli.ui.renderers.frame import MODEL_FILTER_FOOTER, render_frame
 from ai_cli.cli.ui.renderers.select_table import (
     TableColumnSpec,
     render_table,
@@ -115,23 +117,20 @@ def _select_with_prompt_toolkit(
         state.index = _first_enabled_index(state.options)
 
     def _render() -> ANSI:
-        group = Group(
-            "[bold]Select AI Model[/bold]",
-            f"[dim]Current: {current_model}[/dim]",
-            f"[dim]Matches: {len(filtered)}[/dim]",
-            f"[dim]Filter: {filter_text}[/dim]" if filter_text else "",
-            (
-                "[yellow]No matches. Press Ctrl+U to clear filter.[/yellow]"
-                if not filtered and filter_text
-                else ""
-            ),
-            render_table(state, show_index=False, columns=_model_columns()),
-            "[dim]↑/↓ move • Enter select • Esc cancel • '/' filter • Ctrl+U clear[/dim]",
-        )
-
         temp_console = Console(width=console.width, color_system=console.color_system)
         temp_console.begin_capture()
-        temp_console.print(group)
+        temp_console.print(
+            _render_model_frame(
+                title="Select AI Model",
+                current_model=current_model,
+                filter_text=filter_text,
+                matches=len(filtered),
+                filtered_empty=not filtered and bool(filter_text),
+                state=state,
+                theme=DEFAULT_THEME,
+                align=True,
+            )
+        )
         content = temp_console.end_capture()
         return ANSI(content)
 
@@ -239,11 +238,16 @@ def _select_fallback_text(
         _build_options(display, current_model, show_change_provider)
     )
     console.print(
-        render_table(
-            state,
+        _render_model_frame(
             title="Select AI Model",
+            current_model=current_model,
+            filter_text="",
+            matches=len(display),
+            filtered_empty=False,
+            state=state,
+            theme=DEFAULT_THEME,
             show_index=True,
-            columns=_model_columns(),
+            align=False,
         )
     )
     if len(models) > 20:
@@ -354,3 +358,40 @@ def _model_columns() -> list[TableColumnSpec[object]]:
             ),
         ),
     ]
+
+
+def _render_model_frame(
+    *,
+    title: str,
+    current_model: str,
+    filter_text: str,
+    matches: int,
+    filtered_empty: bool,
+    state: SelectState[object],
+    theme: Theme,
+    show_index: bool = False,
+    align: bool = False,
+) -> RenderableType:
+    body: list[RenderableType] = [
+        Text(f"Current: {current_model}", style=theme.muted_style),
+        Text(f"Matches: {matches}", style=theme.muted_style),
+    ]
+    if filter_text:
+        body.append(Text(f"Filter: {filter_text}", style=theme.muted_style))
+    if filtered_empty:
+        body.append(
+            Text(
+                "No matches. Press Ctrl+U to clear filter.",
+                style=theme.frame_warn_style,
+            )
+        )
+    body.append(
+        render_table(state, show_index=show_index, columns=_model_columns())
+    )
+    return render_frame(
+        title=title,
+        body=Group(*body),
+        footer=MODEL_FILTER_FOOTER,
+        theme=theme,
+        align=align,
+    )
