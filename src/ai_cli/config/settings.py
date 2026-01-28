@@ -247,9 +247,7 @@ def list_config_entries(global_path: Path) -> list[ConfigEntry]:
             key="ai_max_context_chars",
             value=str(ai_config.max_context_chars),
             editable=True,
-            source=loader.resolve_setting_source(
-                ["AI_MAX_CONTEXT_CHARS"], global_path
-            ),
+            source=loader.resolve_setting_source(["AI_MAX_CONTEXT_CHARS"], global_path),
             description="Max chars sent to AI context",
             category="AI limits",
             env_key="AI_MAX_CONTEXT_CHARS",

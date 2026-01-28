@@ -100,15 +100,10 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
 
     ai_api_key_value: str | None = None
     if provider_enum is not None:
-        ai_api_key_value = _clean(
-            normalized.get(provider_enum.env_api_key_name())
-        )
+        ai_api_key_value = _clean(normalized.get(provider_enum.env_api_key_name()))
     if not ai_api_key_value:
         ai_api_key_value = _clean(normalized.get("AI_API_KEY"))
-    if (
-        not ai_api_key_value
-        and ai_host_value == AvailableProviders.GOOGLE.value
-    ):
+    if not ai_api_key_value and ai_host_value == AvailableProviders.GOOGLE.value:
         ai_api_key_value = _clean(normalized.get("GEMINI_API_KEY"))
 
     ai_values: dict[str, Any] = {"model_host": ai_host_value}
