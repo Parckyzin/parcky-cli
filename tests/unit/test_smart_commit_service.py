@@ -120,8 +120,7 @@ class TestSmartCommitService:
             sample_git_diff, commit_msg
         )
         smart_commit_service.pr_service.create_pull_request.assert_called_once_with(
-            sample_pull_request,
-            smart_commit_service.git_repo.get_default_branch(),
+            sample_pull_request
         )
 
     def test_create_pull_request_without_service(

@@ -48,8 +48,8 @@ def get_ai_service(config: AIConfig) -> AIServiceInterface:
         and not config.api_key
     ):
         raise ConfigurationError(
-            f"{provider} API KEY is required for the selected AI provider.",
-            user_message=f"{provider} API KEY is required for the selected provider.",
+            "AI_API_KEY is required for the selected AI provider.",
+            user_message="AI_API_KEY is required for the selected provider.",
         )
 
     if provider == AvailableProviders.LOCAL and not config.base_url:

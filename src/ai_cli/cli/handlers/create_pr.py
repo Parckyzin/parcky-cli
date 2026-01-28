@@ -99,7 +99,7 @@ def register(app: typer.Typer) -> None:
                 raise typer.Exit(0) from None
 
             console.print("\n[yellow]📤 Creating Pull Request...[/yellow]")
-            ctx.pr_service.create_pull_request(pr, branch_info.base_branch)
+            ctx.pr_service.create_pull_request(pr)
             console.print(
                 "[bold green]✅ Pull Request created successfully![/bold green]"
             )

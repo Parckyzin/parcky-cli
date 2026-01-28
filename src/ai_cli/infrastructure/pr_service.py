@@ -49,7 +49,7 @@ class GitHubPRService(PullRequestServiceInterface):
                 ),
             ) from e
 
-    def create_pull_request(self, pr: PullRequest, base_branch: str) -> bool:
+    def create_pull_request(self, pr: PullRequest) -> bool:
         """Create a pull request using GitHub CLI."""
         try:
             command = [
@@ -60,8 +60,6 @@ class GitHubPRService(PullRequestServiceInterface):
                 pr.title,
                 "--body",
                 pr.body,
-                "--base",
-                base_branch,
                 "--web",
             ]
 

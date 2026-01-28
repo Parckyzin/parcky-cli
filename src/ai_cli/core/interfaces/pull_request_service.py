@@ -7,6 +7,6 @@ class PullRequestServiceInterface(ABC):
     """Interface for pull request operations."""
 
     @abstractmethod
-    def create_pull_request(self, pr: PullRequest, base_branch: str) -> bool:
+    def create_pull_request(self, pr: PullRequest) -> bool:
         """Create a pull request."""
         pass

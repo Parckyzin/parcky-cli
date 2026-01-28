@@ -5,32 +5,27 @@ import os
 from pathlib import Path
 
 import typer
-from rich.text import Text
 
+from ai_cli.clients import get_ai_service
 from ai_cli.config import loader
-from ai_cli.config.paths import get_global_env_path
-from ai_cli.config.settings import ConfigEntry, list_config_entries, needs_init
+from ai_cli.config.paths import get_global_env_path, get_local_env_path
+from ai_cli.config.settings import AIConfig, AppConfig, GitConfig
 from ai_cli.config.writer import (
     read_ai_provider,
     read_env_value,
     set_ai_provider,
+    set_config_value,
     set_env_value,
-    set_provider_api_key,
 )
-from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import AICliError
-from ai_cli.infrastructure.model_catalog import ModelCatalog
 
-from ..ui.components.modal import confirm as modal_confirm
-from ..ui.components.select import SelectOption, SelectState, select
+from ..context import get_context
 from ..ui.console import console
-from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
-from ..ui.panels import config_hint_panel, config_settings_table
-from ..ui.prompts import confirm, prompt, secret_prompt
+from ..ui.panels import config_settings_table
+from ..ui.prompts import confirm, prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
-from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
 
 def register(app: typer.Typer) -> None:
@@ -119,109 +114,139 @@ def register(app: typer.Typer) -> None:
 
     @app.command()
     def config(
-        edit: bool = typer.Option(
-            False,
-            "--edit",
-            "-e",
-            help="Edit editable values (not implemented yet)",
-        ),
         set_model: str = typer.Option(
             None, "--model", "-m", help="Set the AI model to use"
         ),
+        use_global: bool = typer.Option(
+            False, "--global", "-g", help="Apply changes to global config"
+        ),
         select_model: bool = typer.Option(
-            False,
-            "--select-model",
-            "--select",
-            "-s",
-            help="Interactive model selection (aliases: --select, -s)",
+            False, "--select", "-s", help="Interactive model selection"
         ),
         select_provider: bool = typer.Option(
             False, "--provider", "-p", help="Select AI provider"
         ),
-        action: str | None = typer.Argument(
-            None, help="Optional action (provider, init)"
-        ),
+        action: str | None = typer.Argument(None, help="Optional action (provider)"),
     ) -> None:
         """
-        🔧 Show ai-cli configuration (read-only).
+        🔧 Show or update ai-cli configuration.
 
         Examples:
             ai-cli config                    # Show current config
-            ai-cli config -e                 # Edit mode (coming soon)
-            ai-cli config init               # Run onboarding wizard
+            ai-cli config --select           # Interactive model selection
+            ai-cli config --provider         # Interactive provider selection
+            ai-cli config --model gemini-2.0-flash  # Change model directly
+            ai-cli config --model gemini-2.0-flash --global  # Change model globally
+            ai-cli config provider           # Interactive provider selection
         """
         debug = False
         try:
-            settings_dict = loader.build_settings_dict()
-            debug = bool(settings_dict.get("debug", False))
+            ctx = get_context()
+            debug = ctx.config.debug
             global_path = get_global_env_path()
+            local_path = get_local_env_path()
 
-            if action == "init":
-                _run_init_flow(global_path)
-                _show_config_status(global_path)
-                return
-
-            if needs_init():
-                _run_init_flow(global_path)
-                if edit:
-                    _run_edit_flow(global_path)
-                    return
-                _show_config_status(global_path)
-                return
-
-            if edit:
-                _run_edit_flow(global_path)
-                return
+            active_path = (
+                local_path if local_path.exists() and not use_global else global_path
+            )
 
             select_provider_flag = select_provider or action == "provider"
+
             if select_provider_flag:
-                current_provider = read_ai_provider(global_path) or ""
+                current_provider = read_ai_provider(active_path) or ""
                 selected = prompt_provider_select(current=current_provider or None)
                 if not selected:
                     console.print("[yellow]Cancelled.[/yellow]")
                     return
-                if not _ensure_provider_key(selected, global_path):
-                    return
-                set_ai_provider(global_path, selected)
-                set_env_value(global_path, "AI_MODEL", "")
-                set_env_value(global_path, "MODEL_NAME", "")
+                set_ai_provider(active_path, selected)
+                set_env_value(active_path, "AI_MODEL", "")
+                set_env_value(active_path, "MODEL_NAME", "")
                 console.print(
                     f"[bold green]✅ Provider set to:[/bold green] {selected}"
                 )
-                console.print(f"[dim]   Saved to: {global_path}[/dim]")
+                console.print(f"[dim]   Saved to: {active_path}[/dim]")
                 return
 
             if select_model:
-                _run_select_model(global_path)
+                current_model = (
+                    read_env_value(active_path, "AI_MODEL")
+                    or read_env_value(active_path, "MODEL_NAME")
+                    or "gemini-2.0-flash"
+                )
+                try:
+                    models = ctx.ai_service.get_available_models()
+                except AICliError as exc:
+                    console.print(
+                        f"[yellow]Warning:[/yellow] {exc.user_message or str(exc)}"
+                    )
+                    models = []
+                except Exception:
+                    console.print(
+                        "[yellow]Warning:[/yellow] Unable to load models. Manual mode enabled."
+                    )
+                    models = []
+
+                def _on_select(model: str) -> None:
+                    set_env_value(active_path, "AI_MODEL", model)
+
+                def _on_change_provider(
+                    provider: str,
+                ) -> tuple[list[str], str | None]:
+                    set_ai_provider(active_path, provider)
+                    set_env_value(active_path, "AI_MODEL", "")
+                    set_env_value(active_path, "MODEL_NAME", "")
+                    try:
+                        new_config = AppConfig.load()
+                        new_service = get_ai_service(new_config.ai)
+                        return new_service.get_available_models(), ""
+                    except AICliError as exc:
+                        console.print(
+                            f"[yellow]Warning:[/yellow] {exc.user_message or str(exc)}"
+                        )
+                        return [], ""
+                    except Exception:
+                        console.print(
+                            "[yellow]Warning:[/yellow] Unable to load models. Manual mode enabled."
+                        )
+                        return [], ""
+
+                current_provider = read_ai_provider(active_path) or None
+                interactive_model_select(
+                    models,
+                    current_model,
+                    _on_select,
+                    current_provider=current_provider,
+                    on_change_provider=_on_change_provider,
+                )
                 return
 
-            if set_model or action:
-                console.print(
-                    "[yellow]Config is read-only. Use parcky-cli config -e to edit.[/yellow]"
-                )
+            if set_model:
+                set_env_value(active_path, "AI_MODEL", set_model)
+                console.print(f"[bold green]✅ Model set to:[/bold green] {set_model}")
+                console.print(f"[dim]   Saved to: {active_path}[/dim]")
+                return
 
-            _show_config_status(global_path)
+            _show_config_status(global_path, local_path)
         except AICliError as exc:
             exit_with_error(exc, debug=debug)
-        except (KeyboardInterrupt, typer.Abort):
-            console.print("[yellow]Cancelled.[/yellow]")
-            return
-        except typer.Exit:
-            raise
         except Exception as exc:
             exit_with_unexpected_error(exc, debug=debug)
 
 
-def _show_config_status(global_path: Path) -> None:
+def _show_config_status(global_path: Path, local_path: Path) -> None:
     """Show current configuration status."""
     console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
+    config_snapshot = _load_config_snapshot()
 
-    api_key = read_env_value(global_path, "AI_API_KEY") or read_env_value(
-        global_path, "GEMINI_API_KEY"
+    active_path = local_path if local_path.exists() else global_path
+    active_label = "local" if local_path.exists() else "global"
+
+    api_key = read_env_value(active_path, "AI_API_KEY") or read_env_value(
+        active_path, "GEMINI_API_KEY"
     )
     model_name = (
-        read_env_value(global_path, "AI_MODEL")
-        or read_env_value(global_path, "MODEL_NAME")
+        read_env_value(active_path, "AI_MODEL")
+        or read_env_value(active_path, "MODEL_NAME")
         or "gemini-2.0-flash"
     )
 
@@ -233,507 +258,132 @@ def _show_config_status(global_path: Path) -> None:
         console.print("  API Key: [red]Not set[/red]")
 
     console.print(f"  Model:   [cyan]{model_name}[/cyan]")
-    console.print(f"  Source:  [dim]global ({global_path})[/dim]\n")
+    console.print(f"  Source:  [dim]{active_label} ({active_path})[/dim]")
 
-    rows = list_config_entries(global_path)
+    console.print("\n[bold]Config Files:[/bold]")
+    if global_path.exists():
+        console.print(f"  [green]✓[/green] Global: {global_path}")
+    else:
+        console.print(f"  [dim]✗[/dim] Global: {global_path} [dim](not found)[/dim]")
+
+    if local_path.exists():
+        console.print(f"  [green]✓[/green] Local:  {local_path.absolute()}")
+        console.print("    [dim](takes priority over global)[/dim]")
+    else:
+        console.print("[dim]  ✗ Local:  .env (not found)[/dim]")
+
+    console.print("\n[dim]Commands:[/dim]")
+    console.print("  ai-cli setup              [dim]# Change API key[/dim]")
+    console.print("  ai-cli config -s          [dim]# Select model (interactive)[/dim]")
+    console.print("  ai-cli config -m MODEL    [dim]# Set model directly[/dim]")
+
+    rows = _build_config_rows(config_snapshot, local_path, global_path)
+    console.print("\n[bold]Editable Settings:[/bold]")
     console.print(config_settings_table(rows))
-    console.print(
-        config_hint_panel("Tip: To edit editable values, run: parcky-cli config -e")
-    )
+
+    _prompt_edit_setting(rows, active_path)
 
 
-def _run_init_flow(global_path: Path) -> None:
-    console.print("[bold]🔧 Config Init[/bold]")
-    console.print("[dim]Let's set up the essentials.[/dim]\n")
+def _build_config_rows(
+    config: tuple[AIConfig, GitConfig], local_path: Path, global_path: Path
+) -> list[tuple[str, str, str, str]]:
+    rows: list[tuple[str, str, str, str]] = []
+    ai_config, git_config = config
 
-    if not _configure_provider_keys(global_path):
-        console.print("[yellow]Init cancelled.[/yellow]")
-        return
-
-    provider = _select_active_provider(global_path)
-    if not provider:
-        console.print("[yellow]Init cancelled.[/yellow]")
-        return
-
-    model_name = _select_model_name(provider)
-    if not model_name:
-        console.print("[yellow]Init cancelled.[/yellow]")
-        return
-
-    ai_limit = _prompt_int_value(
-        label="ai_max_context_chars",
-        min_value=1000,
-        default=_current_int_value(global_path, "AI_MAX_CONTEXT_CHARS", 35000),
-    )
-    if ai_limit is None:
-        console.print("[yellow]Init cancelled.[/yellow]")
-        return
-
-    git_limit = _prompt_int_value(
-        label="git_max_diff_size",
-        min_value=100,
-        default=_current_int_value(global_path, "GIT_MAX_DIFF_SIZE", 10000),
-    )
-    if git_limit is None:
-        console.print("[yellow]Init cancelled.[/yellow]")
-        return
-
-    summary = (
-        f"Provider: {provider}\n"
-        f"Model: {model_name}\n"
-        f"ai_max_context_chars: {ai_limit}\n"
-        f"git_max_diff_size: {git_limit}"
-    )
-    if not modal_confirm(title="Apply settings?", body=summary, variant="info"):
-        console.print("[yellow]No changes made.[/yellow]")
-        return
-
-    set_ai_provider(global_path, provider)
-    set_env_value(global_path, "AI_MODEL", model_name)
-    set_env_value(global_path, "AI_MAX_CONTEXT_CHARS", str(ai_limit))
-    set_env_value(global_path, "GIT_MAX_DIFF_SIZE", str(git_limit))
-    console.print("[bold green]✅ Configuration saved.[/bold green]")
-
-
-def _run_select_model(global_path: Path) -> None:
-    provider_value = read_ai_provider(global_path)
-    if not provider_value:
-        console.print(
-            "[yellow]No provider configured. Run: parcky-cli config init[/yellow]"
+    rows.append(
+        (
+            "ai_max_context_chars",
+            str(ai_config.max_context_chars),
+            loader.resolve_setting_source(
+                ["AI_MAX_CONTEXT_CHARS"], local_path, global_path
+            ),
+            "Max chars sent to AI context",
         )
-        return
-
-    try:
-        provider = AvailableProviders(provider_value)
-    except ValueError:
-        console.print(
-            "[yellow]Unknown provider configured. Run: parcky-cli config init[/yellow]"
-        )
-        return
-
-    api_key = _resolve_provider_api_key(provider)
-    if provider.needs_api_key() and not api_key:
-        console.print(
-            f"[yellow]No API key set for {provider.value}. "
-            "Run: parcky-cli config init[/yellow]"
-        )
-        return
-
-    catalog = ModelCatalog()
-    try:
-        models = catalog.list_models(provider, api_key)
-    except AICliError as exc:
-        console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
-        models = []
-
-    current_model = (
-        read_env_value(global_path, "AI_MODEL")
-        or read_env_value(global_path, "MODEL_NAME")
-        or ""
     )
-
-    selected: list[str] = []
-
-    def _on_select(model: str) -> None:
-        selected.append(model)
-        set_env_value(global_path, "AI_MODEL", model)
-
-    interactive_model_select(
-        models,
-        current_model,
-        _on_select,
-        current_provider=provider,
-        on_change_provider=None,
-    )
-    if selected:
-        console.print(
-            f"[bold green]✅ Model set to:[/bold green] "
-            f"{selected[0]}"
+    rows.append(
+        (
+            "git_max_diff_size",
+            str(git_config.max_diff_size),
+            loader.resolve_setting_source(
+                ["GIT_MAX_DIFF_SIZE"], local_path, global_path
+            ),
+            "Max diff size for AI analysis",
         )
+    )
+    rows.append(
+        (
+            "ai_system_instruction",
+            _truncate(ai_config.system_instruction or "", 40),
+            loader.resolve_setting_source(
+                ["AI_SYSTEM_INSTRUCTION"], local_path, global_path
+            ),
+            "System prompt (read-only)",
+        )
+    )
+    rows.append(
+        (
+            "model",
+            ai_config.model_name,
+            loader.resolve_setting_source(
+                ["AI_MODEL", "MODEL_NAME"], local_path, global_path
+            ),
+            "AI model name (read-only)",
+        )
+    )
+    return rows
 
 
-def _configure_provider_keys(global_path: Path) -> bool:
-    providers = [p for p in AvailableProviders if p.needs_api_key()]
+def _prompt_edit_setting(rows: list[tuple[str, str, str, str]], path: Path) -> None:
+    key_map = {1: "ai_max_context_chars", 2: "git_max_diff_size"}
+    max_index = len(rows)
     while True:
-        options: list[SelectOption[AvailableProviders | str]] = []
-        for provider in providers:
-            status = "set" if _has_provider_key(provider, global_path) else "missing"
-            options.append(
-                SelectOption(
-                    value=provider,
-                    label=provider,
-                    description=f"API key {status}",
-                )
-            )
-        options.append(
-            SelectOption(value="Continue", label="Continue", description=None)
-        )
-
-        selection = _select_option(options, "Manage API keys")
-        if selection is None:
-            return False
-        if selection == "Continue":
-            return True
-        if isinstance(selection, AvailableProviders):
-            _set_provider_key(selection, global_path)
-
-
-def _set_provider_key(provider: AvailableProviders, global_path: Path) -> None:
-    new_key = secret_prompt(f"Enter {provider.value} API key").strip()
-    if not new_key:
-        console.print("[yellow]No API key provided.[/yellow]")
-        return
-    set_provider_api_key(global_path, provider, new_key)
-    console.print(f"[bold green]✅ {provider.value} key saved.[/bold green]")
-
-
-def _select_active_provider(global_path: Path) -> str | None:
-    while True:
-        ready = _ready_providers(global_path)
-        if not ready:
-            console.print(
-                "[yellow]No providers are ready. Add an API key to continue.[/yellow]"
-            )
-            if not _configure_provider_keys(global_path):
-                return None
-            ready = _ready_providers(global_path)
-            if not ready:
-                return None
-
-        selected = prompt_provider_select(
-            current=read_ai_provider(global_path) or None,
-            providers=ready,
-        )
-        if not selected:
-            return None
-        if _ensure_provider_key(selected, global_path):
-            return selected
-
-
-def _select_model_name(provider: str) -> str | None:
-    try:
-        provider_enum = AvailableProviders(provider)
-    except ValueError:
-        console.print("[yellow]Unknown provider.[/yellow]")
-        return None
-
-    api_key = _resolve_provider_api_key(provider_enum)
-    if provider_enum.needs_api_key() and not api_key:
-        console.print(
-            f"[yellow]No API key set for {provider_enum.value}. "
-            "Add one to list models.[/yellow]"
-        )
-        return None
-
-    catalog = ModelCatalog()
-    try:
-        models = catalog.list_models(provider_enum, api_key)
-    except AICliError as exc:
-        console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
-        models = []
-
-    selected: list[str] = []
-
-    def _on_select(model: str) -> None:
-        selected.append(model)
-
-    interactive_model_select(
-        models,
-        "",
-        _on_select,
-        current_provider=provider,
-        on_change_provider=None,
-    )
-
-    return selected[0] if selected else None
-
-
-def _current_int_value(path: Path, env_key: str, fallback: int) -> int:
-    raw = read_env_value(path, env_key)
-    if raw.isdigit():
-        return int(raw)
-    return fallback
-
-
-def _select_option(
-    options: list[SelectOption[AvailableProviders | str]],
-    title: str,
-) -> AvailableProviders | str | None:
-    try:
-        return select(options, title=title)
-    except ImportError:
-        console.print(
-            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
-        )
-    except Exception as exc:
-        console.print(
-            f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
-        )
-
-    state = SelectState.from_options(options)
-    console.print(render_table(state, title=title, show_index=True))
-    user_input = prompt("Enter number or blank to cancel").strip()
-    if not user_input or not user_input.isdigit():
-        return None
-    choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
-    return None
-
-
-def _ensure_provider_key(provider: str, global_path: Path) -> bool:
-    try:
-        provider_enum = AvailableProviders(provider)
-    except ValueError:
-        return True
-
-    if not provider_enum.needs_api_key():
-        return True
-
-    if _has_provider_key(provider_enum, global_path):
-        return True
-
-    console.print(
-        f"[yellow]No API key set for {provider_enum.value}. "
-        "Add one to use this provider.[/yellow]"
-    )
-    if not confirm("Add API key now?", default=True):
-        return False
-    new_key = prompt(f"Enter {provider_enum.value} API key").strip()
-    if not new_key:
-        console.print("[yellow]No API key provided. Cancelled.[/yellow]")
-        return False
-    set_provider_api_key(global_path, provider_enum, new_key)
-    return True
-
-
-def _has_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
-    env_key = provider.env_api_key_name()
-    if read_env_value(global_path, env_key):
-        return True
-    if read_env_value(global_path, "AI_API_KEY"):
-        return True
-    return provider == AvailableProviders.GOOGLE and bool(
-        read_env_value(global_path, "GEMINI_API_KEY")
-    )
-
-
-def _resolve_provider_api_key(provider: AvailableProviders) -> str | None:
-    values = loader.load_settings_values()
-    env_key = provider.env_api_key_name()
-    direct = values.get(env_key)
-    if direct:
-        return str(direct).strip() or None
-    legacy = values.get("AI_API_KEY")
-    if legacy:
-        return str(legacy).strip() or None
-    if provider == AvailableProviders.GOOGLE:
-        gemini = values.get("GEMINI_API_KEY")
-        if gemini:
-            return str(gemini).strip() or None
-    return None
-
-
-def _ready_providers(global_path: Path) -> list[AvailableProviders]:
-    ready: list[AvailableProviders] = []
-    for provider in AvailableProviders:
-        if not provider.needs_api_key():
-            ready.append(provider)
+        selection = prompt(
+            "Select setting to edit (1-2) or press Enter to exit"
+        ).strip()
+        if not selection:
+            return
+        if not selection.isdigit():
+            console.print("[red]Invalid choice. Enter a number.[/red]")
             continue
-        if _has_provider_key(provider, global_path):
-            ready.append(provider)
-    return ready
-
-
-def _run_edit_flow(global_path: Path) -> None:
-    while True:
-        category = _select_edit_category()
-        if category in {None, "Back", "Exit"}:
+        index = int(selection)
+        if index < 1 or index > max_index:
+            console.print("[red]Invalid selection.[/red]")
+            continue
+        if index not in key_map:
+            console.print("[yellow]Selected setting is read-only.[/yellow]")
             return
 
-        _edit_category(category, global_path)
-
-
-def _select_edit_category() -> str | None:
-    options = [
-        SelectOption(value="AI limits", label="AI limits", description="AI limits"),
-        SelectOption(value="Git limits", label="Git limits", description="Git limits"),
-        SelectOption(value="Back", label="Back", description="Return"),
-        SelectOption(value="Exit", label="Exit", description="Exit"),
-    ]
-    try:
-        return select(options, title="Edit configuration")
-    except ImportError:
-        console.print(
-            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
-        )
-    except Exception as exc:
-        console.print(
-            f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
-        )
-
-    state = SelectState.from_options(options)
-    console.print(render_table(state, title="Edit configuration", show_index=True))
-    user_input = prompt("Enter number or blank to cancel").strip()
-    if not user_input or not user_input.isdigit():
-        return None
-    choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return str(state.options[choice - 1].value)
-    return None
-
-
-def _edit_category(category: str, global_path: Path) -> None:
-    while True:
-        entries = [
-            entry
-            for entry in list_config_entries(global_path)
-            if entry.editable and entry.category == category
-        ]
-        if not entries:
-            console.print("[yellow]No editable settings in this category.[/yellow]")
+        key = key_map[index]
+        if key == "ai_max_context_chars":
+            _edit_int_setting(
+                path,
+                env_key="AI_MAX_CONTEXT_CHARS",
+                label="ai_max_context_chars",
+                min_value=1000,
+            )
+            return
+        if key == "git_max_diff_size":
+            _edit_int_setting(
+                path,
+                env_key="GIT_MAX_DIFF_SIZE",
+                label="git_max_diff_size",
+                min_value=100,
+            )
             return
 
-        selection = _select_edit_entry(entries, title=category)
-        if selection is None:
-            return
-        if selection == "Back":
-            return
-        if isinstance(selection, ConfigEntry):
-            _edit_entry(selection, global_path)
 
-
-def _select_edit_entry(
-    entries: list[ConfigEntry],
+def _edit_int_setting(
+    path: Path,
     *,
-    title: str,
-) -> ConfigEntry | str | None:
-    options: list[SelectOption[ConfigEntry | str]] = [
-        SelectOption(
-            value=entry,
-            label=entry.key,
-            description=entry.description,
-        )
-        for entry in entries
-    ]
-    options.append(
-        SelectOption(value="Back", label="Back", description="Return to categories")
-    )
-    state = SelectState.from_options(options)
-
-    def _render_table(state_: SelectState[ConfigEntry | str]):
-        return render_table(
-            state_,
-            title=title,
-            columns=_edit_columns(),
-        )
-
-    try:
-        return select_with_prompt_toolkit(state, render=_render_table)
-    except ImportError:
-        console.print(
-            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
-        )
-    except Exception as exc:
-        console.print(
-            f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
-        )
-
-    console.print(
-        render_table(state, title=title, show_index=True, columns=_edit_columns())
-    )
-    user_input = prompt("Enter number or blank to cancel").strip()
-    if not user_input or not user_input.isdigit():
-        return None
-    choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
-    return None
-
-
-def _edit_columns() -> list[TableColumnSpec[ConfigEntry | str]]:
-    def _entry_from(option: SelectOption[ConfigEntry | str]) -> ConfigEntry | None:
-        return option.value if isinstance(option.value, ConfigEntry) else None
-
-    def _value_for(option: SelectOption[ConfigEntry | str]) -> str:
-        entry = _entry_from(option)
-        return entry.value if entry else ""
-
-    def _source_for(option: SelectOption[ConfigEntry | str]) -> str:
-        entry = _entry_from(option)
-        return entry.source if entry else ""
-
-    return [
-        TableColumnSpec(
-            header="Key",
-            width=22,
-            render=lambda opt, _state, _idx, styles, _theme: Text(
-                strip_ansi(opt.label), style=styles.label_style
-            ),
-        ),
-        TableColumnSpec(
-            header="Value",
-            render=lambda opt, _state, _idx, styles, _theme: Text(
-                _value_for(opt),
-                style=styles.row_style,
-            ),
-        ),
-        TableColumnSpec(
-            header="Description",
-            render=lambda opt, _state, _idx, styles, _theme: Text(
-                strip_ansi(opt.description or ""), style=styles.row_style
-            ),
-        ),
-        TableColumnSpec(
-            header="Source",
-            width=10,
-            render=lambda opt, _state, _idx, styles, _theme: Text(
-                _source_for(opt),
-                style=styles.row_style,
-            ),
-        ),
-    ]
-
-
-def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
-    if not entry.env_key or entry.min_value is None:
-        console.print("[yellow]Selected setting is read-only.[/yellow]")
-        return
-
-    new_value = _prompt_int_value(
-        label=entry.key,
-        min_value=entry.min_value,
-    )
-    if new_value is None:
-        return
-
-    body = (
-        f"Current value: {entry.value}\n"
-        f"New value: {new_value}\n\n"
-        "Note: increasing this value may increase cost or runtime."
-    )
-    if not modal_confirm(title="Apply change?", body=body, variant="warn"):
-        console.print("[yellow]No changes made.[/yellow]")
-        return
-
-    set_env_value(global_path, entry.env_key, str(new_value))
-    console.print(f"[bold green]✅ {entry.key} updated.[/bold green]")
-
-
-def _prompt_int_value(
-    *,
+    env_key: str,
     label: str,
     min_value: int,
-    default: int | None = None,
-) -> int | None:
+) -> None:
     while True:
-        raw_value = prompt(
-            f"Enter new value for {label} (min {min_value})",
-            default=str(default) if default is not None else None,
-        ).strip()
+        raw_value = prompt(f"Enter new value for {label} (min {min_value})").strip()
         if not raw_value:
             console.print("[yellow]No changes made.[/yellow]")
-            return None
+            return
         if not raw_value.isdigit():
             console.print("[red]Please enter a valid integer.[/red]")
             continue
@@ -741,4 +391,21 @@ def _prompt_int_value(
         if value < min_value:
             console.print(f"[red]{label} must be at least {min_value}.[/red]")
             continue
+        set_config_value(path, env_key, value)
+        console.print(f"[bold green]✅ {label} updated.[/bold green]")
+        return
+
+
+def _truncate(value: str, max_len: int) -> str:
+    if len(value) <= max_len:
         return value
+    return value[: max_len - 3] + "..."
+
+
+def _load_config_snapshot() -> tuple[AIConfig, GitConfig]:
+    settings_dict = loader.build_settings_dict()
+    ai_values = settings_dict.get("ai", {})
+    git_values = settings_dict.get("git", {})
+    ai_config = AIConfig.model_construct(**ai_values)
+    git_config = GitConfig.model_construct(**git_values)
+    return ai_config, git_config

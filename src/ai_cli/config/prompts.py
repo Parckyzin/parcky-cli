@@ -26,6 +26,10 @@ class PromptsLoader:
         """Get list of possible prompts.json locations in priority order."""
         search_paths: list[Path] = []
 
+        local_prompts = paths.get_local_prompts_path()
+        if local_prompts.exists():
+            search_paths.append(local_prompts)
+
         global_prompts = paths.get_global_prompts_path()
         if global_prompts.exists():
             search_paths.append(global_prompts)
