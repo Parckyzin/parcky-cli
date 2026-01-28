@@ -39,5 +39,15 @@ class Theme:
     modal_error_icon: str = "✖"
     modal_success_icon: str = "✔"
 
+    frame_border_style: str = "dim"
+    frame_title_style: str = "bold"
+    frame_footer_style: str = "dim"
+    frame_padding: tuple[int, int] = (1, 2)
+
+    frame_info_style: str = "purple"
+    frame_warn_style: str = "yellow"
+    frame_error_style: str = "red"
+    frame_success_style: str = "green"
+
 
 DEFAULT_THEME = Theme()
