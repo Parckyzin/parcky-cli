@@ -22,6 +22,8 @@ def test_config_list_shows_values_and_sources(tmp_path, monkeypatch) -> None:
 
     _patch_paths(monkeypatch, global_path)
     _patch_needs_init(monkeypatch, False)
+    monkeypatch.setattr(config_cmd, "_run_init_flow", lambda _path: None)
+    monkeypatch.setattr(config_cmd, "needs_init", lambda *_a, **_k: False)
     monkeypatch.setattr(
         config_cmd, "prompt", lambda _msg: (_ for _ in ()).throw(AssertionError)
     )
@@ -44,6 +46,8 @@ def test_config_read_only_does_not_touch_prompt(tmp_path, monkeypatch) -> None:
 
     _patch_paths(monkeypatch, global_path)
     _patch_needs_init(monkeypatch, False)
+    monkeypatch.setattr(config_cmd, "_run_init_flow", lambda _path: None)
+    monkeypatch.setattr(config_cmd, "needs_init", lambda *_a, **_k: False)
     monkeypatch.setattr(
         config_cmd, "prompt", lambda _msg: (_ for _ in ()).throw(AssertionError)
     )
@@ -61,6 +65,8 @@ def test_config_edit_flow_basic_exit(tmp_path, monkeypatch) -> None:
 
     _patch_paths(monkeypatch, global_path)
     _patch_needs_init(monkeypatch, False)
+    monkeypatch.setattr(config_cmd, "_run_init_flow", lambda _path: None)
+    monkeypatch.setattr(config_cmd, "needs_init", lambda *_a, **_k: False)
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: "Exit")
 
     runner = CliRunner()
@@ -85,7 +91,9 @@ def test_config_edit_ai_max_context_chars_persists(tmp_path, monkeypatch) -> Non
     selections = iter([entry, None])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
     monkeypatch.setattr(
-        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+        config_cmd,
+        "_select_edit_entry",
+        lambda _entries, **_kwargs: next(selections),
     )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "12000")
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
@@ -113,7 +121,9 @@ def test_config_edit_cancel_does_not_persist(tmp_path, monkeypatch) -> None:
     selections = iter([entry, None])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
     monkeypatch.setattr(
-        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+        config_cmd,
+        "_select_edit_entry",
+        lambda _entries, **_kwargs: next(selections),
     )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "120")
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: False)
@@ -142,7 +152,9 @@ def test_config_edit_rejects_invalid_value(tmp_path, monkeypatch) -> None:
     inputs = iter(["0", ""])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
     monkeypatch.setattr(
-        config_cmd, "_select_edit_entry", lambda _entries, _title: next(selections)
+        config_cmd,
+        "_select_edit_entry",
+        lambda _entries, **_kwargs: next(selections),
     )
     monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: next(inputs))
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
