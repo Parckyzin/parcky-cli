@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Generic, Sequence, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -21,7 +22,7 @@ class SelectState(Generic[T]):
     index: int | None
 
     @classmethod
-    def from_options(cls, options: Sequence[SelectOption[T]]) -> "SelectState[T]":
+    def from_options(cls, options: Sequence[SelectOption[T]]) -> SelectState[T]:
         option_list = list(options)
         index = _first_enabled_index(option_list)
         return cls(options=option_list, index=index)

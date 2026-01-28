@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Iterable, TypeVar
+from collections.abc import Iterable
+from typing import TypeVar
 
 from ai_cli.cli.ui.components.select.keys import SelectResult, handle_key
 from ai_cli.cli.ui.components.select.state import SelectOption, SelectState
+from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
 from ai_cli.cli.ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ai_cli.cli.ui.renderers.select_table import render_table
-from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
 
 T = TypeVar("T")
 
