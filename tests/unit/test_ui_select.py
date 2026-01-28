@@ -4,12 +4,14 @@ from rich.text import Text
 from ai_cli.cli.ui.components import (
     SelectOption,
     SelectState,
-    TableColumnSpec,
     Theme,
     handle_key,
+)
+from ai_cli.cli.ui.renderers.select_table import (
+    TableColumnSpec,
+    _compute_row_styles,
     render_table,
 )
-from ai_cli.cli.ui.components.select import _compute_row_styles
 
 
 def test_navigation_clamps():
