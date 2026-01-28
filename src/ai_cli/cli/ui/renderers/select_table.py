@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Literal, TypeVar
 
 from rich.console import RenderableType
 from rich.table import Table
@@ -26,11 +27,11 @@ class RowStyles:
 class TableColumnSpec(Generic[T]):
     header: str
     width: int | None = None
-    justify: str | None = None
+    justify: Literal["left", "center", "right"] | None = None
     style: str | None = None
-    render: Callable[[SelectOption[T], SelectState[T], int, RowStyles, Theme], RenderableType] = (
-        lambda _opt, _state, _idx, _styles, _theme: ""
-    )
+    render: Callable[
+        [SelectOption[T], SelectState[T], int, RowStyles, Theme], RenderableType
+    ] = lambda _opt, _state, _idx, _styles, _theme: ""
 
 
 def render_table(
@@ -39,13 +40,13 @@ def render_table(
     title: str | None = None,
     theme: Theme = DEFAULT_THEME,
     show_index: bool = False,
-    columns: list[TableColumnSpec[T]] | None = None,
+    columns: Sequence[TableColumnSpec[T]] | None = None,
 ) -> Table:
     table = Table(show_header=True, header_style=theme.header_style, title=title)
     if show_index:
         table.add_column("#", style=theme.muted_style, width=4)
 
-    specs = columns or _default_columns()
+    specs = list(columns) if columns is not None else _default_columns()
     for spec in specs:
         table.add_column(
             spec.header,
@@ -56,9 +57,7 @@ def render_table(
 
     if not state.options:
         empty_row = [
-            Text(theme.empty_label, style=theme.muted_style)
-            if idx == 0
-            else ""
+            Text(theme.empty_label, style=theme.muted_style) if idx == 0 else ""
             for idx in range(len(specs))
         ]
         if show_index:
@@ -68,10 +67,7 @@ def render_table(
 
     for idx, option in enumerate(state.options):
         styles = _compute_row_styles(option, state, idx, theme)
-        row = [
-            spec.render(option, state, idx, styles, theme)
-            for spec in specs
-        ]
+        row = [spec.render(option, state, idx, styles, theme) for spec in specs]
         if show_index:
             row.insert(0, str(idx + 1))
         table.add_row(*row)
@@ -130,13 +126,13 @@ def _default_columns() -> list[TableColumnSpec[T]]:
         TableColumnSpec(
             header="Option",
             render=lambda opt, _state, _idx, styles, _theme: Text(
-                _strip_ansi(opt.label), style=styles.label_style
+                strip_ansi(opt.label), style=styles.label_style
             ),
         ),
         TableColumnSpec(
             header="Description",
             render=lambda opt, _state, _idx, styles, _theme: Text(
-                _strip_ansi(opt.description or ""), style=styles.row_style
+                strip_ansi(opt.description or ""), style=styles.row_style
             ),
         ),
         TableColumnSpec(
@@ -152,7 +148,7 @@ def _default_columns() -> list[TableColumnSpec[T]]:
     ]
 
 
-def _strip_ansi(value: str) -> str:
+def strip_ansi(value: str) -> str:
     cleaned = value.replace("\x1b", "")
     while True:
         start = cleaned.find("[")
