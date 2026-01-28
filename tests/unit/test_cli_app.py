@@ -31,6 +31,18 @@ def test_config_help_includes_edit_flag():
     runner = CliRunner()
     result = runner.invoke(app, ["config", "--help"])
     assert result.exit_code == 0
-    assert "-e" in result.output
-    assert "--edit" in result.output
-    assert "init" in result.output
+    output = _strip_ansi(result.output)
+    assert "-e" in output
+    assert "--edit" in output
+    assert "init" in output
+
+
+def _strip_ansi(value: str) -> str:
+    cleaned = value.replace("\x1b", "")
+    while True:
+        start = cleaned.find("[")
+        end = cleaned.find("m", start)
+        if start == -1 or end == -1:
+            break
+        cleaned = cleaned[:start] + cleaned[end + 1 :]
+    return cleaned
