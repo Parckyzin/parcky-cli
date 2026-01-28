@@ -88,12 +88,27 @@ def build_settings_dict(values: dict[str, str] | None = None) -> dict[str, Any]:
     ai_provider_value = ai_provider_raw or ai_host_raw
     ai_host_value = (ai_provider_value or AvailableProviders.GOOGLE.value).lower()
 
+    provider_enum: AvailableProviders | None
+    try:
+        provider_enum = AvailableProviders(ai_host_value)
+    except ValueError:
+        provider_enum = None
+
     ai_model_value = _clean(normalized.get("AI_MODEL")) or _clean(
         normalized.get("MODEL_NAME")
     )
 
-    ai_api_key_value = _clean(normalized.get("AI_API_KEY"))
-    if not ai_api_key_value and ai_host_value == AvailableProviders.GOOGLE.value:
+    ai_api_key_value: str | None = None
+    if provider_enum is not None:
+        ai_api_key_value = _clean(
+            normalized.get(provider_enum.env_api_key_name())
+        )
+    if not ai_api_key_value:
+        ai_api_key_value = _clean(normalized.get("AI_API_KEY"))
+    if (
+        not ai_api_key_value
+        and ai_host_value == AvailableProviders.GOOGLE.value
+    ):
         ai_api_key_value = _clean(normalized.get("GEMINI_API_KEY"))
 
     ai_values: dict[str, Any] = {"model_host": ai_host_value}

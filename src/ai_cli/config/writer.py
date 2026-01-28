@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from ai_cli.core.common.enums import AvailableProviders
+
 
 def read_env_file(path: Path) -> dict[str, str]:
     """Read a .env file into a dict."""
@@ -59,6 +61,15 @@ def set_env_value(path: Path, key: str, value: str) -> None:
 def set_ai_provider(path: Path, value: str) -> None:
     """Set AI provider in a .env file (new key)."""
     set_env_value(path, "AI_PROVIDER", value)
+
+
+def set_provider_api_key(
+    path: Path,
+    provider: AvailableProviders,
+    value: str,
+) -> None:
+    """Set a provider-specific API key without touching other keys."""
+    set_env_value(path, provider.env_api_key_name(), value)
 
 
 def set_config_value(path: Path, key: str, value: str | int) -> None:

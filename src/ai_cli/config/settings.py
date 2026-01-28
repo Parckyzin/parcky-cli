@@ -292,6 +292,39 @@ def list_config_entries(global_path: Path) -> list[ConfigEntry]:
     ]
 
 
+def needs_init(values: dict[str, str] | None = None) -> bool:
+    raw_env = values or loader.load_settings_values()
+    normalized: dict[str, str] = {str(k).upper(): str(v) for k, v in raw_env.items()}
+
+    provider_raw = normalized.get("AI_PROVIDER") or normalized.get("AI_HOST")
+    model_raw = normalized.get("AI_MODEL") or normalized.get("MODEL_NAME")
+
+    if not provider_raw or not provider_raw.strip():
+        return True
+    if not model_raw or not model_raw.strip():
+        return True
+
+    try:
+        provider = AvailableProviders(provider_raw.strip().lower())
+    except ValueError:
+        return True
+
+    if not provider.needs_api_key():
+        return False
+
+    key = normalized.get(provider.env_api_key_name())
+    if key and key.strip():
+        return False
+    legacy_key = normalized.get("AI_API_KEY")
+    if legacy_key and legacy_key.strip():
+        return False
+    if provider == AvailableProviders.GOOGLE:
+        gemini_key = normalized.get("GEMINI_API_KEY")
+        if gemini_key and gemini_key.strip():
+            return False
+    return True
+
+
 def _truncate(value: str, max_len: int) -> str:
     if len(value) <= max_len:
         return value
