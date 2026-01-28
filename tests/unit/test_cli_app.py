@@ -35,6 +35,9 @@ def test_config_help_includes_edit_flag():
     assert "-e" in output
     assert "--edit" in output
     assert "init" in output
+    assert "--select-model" in output
+    assert "--select" in output
+    assert "-s" in output
 
 
 def _strip_ansi(value: str) -> str:

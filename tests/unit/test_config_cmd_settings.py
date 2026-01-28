@@ -276,6 +276,36 @@ def test_init_cancel_stops_flow(tmp_path, monkeypatch) -> None:
     assert called["provider"] is False
 
 
+def test_select_model_persists_value(tmp_path, monkeypatch) -> None:
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+    set_env_value(global_path, "AI_PROVIDER", "google")
+    set_env_value(global_path, "GOOGLE_API_KEY", "key")
+
+    _patch_paths(monkeypatch, global_path)
+    _patch_needs_init(monkeypatch, False)
+    monkeypatch.setattr(config_cmd, "_run_init_flow", lambda _path: None)
+
+    captured: dict[str, list[str]] = {"models": []}
+
+    def _fake_list_models(_self, _provider, _api_key):
+        return ["m1", "m2"]
+
+    def _fake_select(models, _current, on_select, **_kwargs):
+        captured["models"] = list(models)
+        on_select("m2")
+
+    monkeypatch.setattr(config_cmd.ModelCatalog, "list_models", _fake_list_models)
+    monkeypatch.setattr(config_cmd, "interactive_model_select", _fake_select)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_main.app, ["config", "--select-model"])
+
+    assert result.exit_code == 0
+    assert captured["models"] == ["m1", "m2"]
+    assert read_env_value(global_path, "AI_MODEL") == "m2"
+
+
 def test_model_catalog_used_for_init(monkeypatch) -> None:
     captured: list[str] = []
 
