@@ -19,8 +19,7 @@ class ModelCatalog(ModelCatalogInterface):
             raise ConfigurationError(
                 "API key is required to list models.",
                 user_message=(
-                    f"No API key set for {provider.value}. "
-                    "Add one to list models."
+                    f"No API key set for {provider.value}. Add one to list models."
                 ),
             )
 
@@ -37,7 +36,5 @@ class ModelCatalog(ModelCatalogInterface):
 
         raise AIServiceError(
             f"Model listing not implemented for {provider.value}.",
-            user_message=(
-                f"Model listing not implemented for {provider.value}."
-            ),
+            user_message=(f"Model listing not implemented for {provider.value}."),
         )
