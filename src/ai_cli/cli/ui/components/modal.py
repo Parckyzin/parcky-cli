@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Literal
 
 from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
 from ai_cli.cli.ui.drivers.prompt_toolkit import run_prompt_toolkit
