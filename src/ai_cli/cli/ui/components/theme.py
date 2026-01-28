@@ -29,7 +29,7 @@ class Theme:
     modal_action_style: str = "dim"
     modal_action_selected_style: str = "reverse"
 
-    modal_info_style: str = "cyan"
+    modal_info_style: str = "purple"
     modal_warn_style: str = "yellow"
     modal_error_style: str = "red"
     modal_success_style: str = "green"
