@@ -14,21 +14,21 @@ from ai_cli.config.writer import (
     read_ai_provider,
     read_env_value,
     set_ai_provider,
-    set_provider_api_key,
     set_env_value,
+    set_provider_api_key,
 )
-from ai_cli.core.exceptions import AICliError
 from ai_cli.core.common.enums import AvailableProviders
+from ai_cli.core.exceptions import AICliError
 from ai_cli.infrastructure.model_catalog import ModelCatalog
 
-from ..ui.console import console
 from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.select import SelectOption, SelectState, select
+from ..ui.console import console
 from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
+from ..ui.model_select import interactive_model_select
 from ..ui.panels import config_hint_panel, config_settings_table
 from ..ui.prompts import confirm, prompt, secret_prompt
-from ..ui.model_select import interactive_model_select
 from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
@@ -230,9 +230,7 @@ def _show_config_status(global_path: Path) -> None:
     rows = list_config_entries(global_path)
     console.print(config_settings_table(rows))
     console.print(
-        config_hint_panel(
-            "Tip: To edit editable values, run: parcky-cli config -e"
-        )
+        config_hint_panel("Tip: To edit editable values, run: parcky-cli config -e")
     )
 
 
@@ -399,7 +397,9 @@ def _select_option(
     try:
         return select(options, title=title)
     except ImportError:
-        console.print("[yellow]prompt_toolkit not available. Using text fallback.[/yellow]")
+        console.print(
+            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
+        )
     except Exception as exc:
         console.print(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
@@ -448,11 +448,9 @@ def _has_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
         return True
     if read_env_value(global_path, "AI_API_KEY"):
         return True
-    if provider == AvailableProviders.GOOGLE and read_env_value(
-        global_path, "GEMINI_API_KEY"
-    ):
-        return True
-    return False
+    return provider == AvailableProviders.GOOGLE and bool(
+        read_env_value(global_path, "GEMINI_API_KEY")
+    )
 
 
 def _resolve_provider_api_key(provider: AvailableProviders) -> str | None:
@@ -501,7 +499,9 @@ def _select_edit_category() -> str | None:
     try:
         return select(options, title="Edit configuration")
     except ImportError:
-        console.print("[yellow]prompt_toolkit not available. Using text fallback.[/yellow]")
+        console.print(
+            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
+        )
     except Exception as exc:
         console.print(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
@@ -566,13 +566,17 @@ def _select_edit_entry(
     try:
         return select_with_prompt_toolkit(state, render=_render_table)
     except ImportError:
-        console.print("[yellow]prompt_toolkit not available. Using text fallback.[/yellow]")
+        console.print(
+            "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
+        )
     except Exception as exc:
         console.print(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
         )
 
-    console.print(render_table(state, title=title, show_index=True, columns=_edit_columns()))
+    console.print(
+        render_table(state, title=title, show_index=True, columns=_edit_columns())
+    )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
