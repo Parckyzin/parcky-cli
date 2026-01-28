@@ -179,7 +179,11 @@ def test_config_init_persists_values(tmp_path, monkeypatch) -> None:
     def _set_keys(path):
         config_cmd.set_provider_api_key(path, config_cmd.AvailableProviders.OPENAI, "key")
 
-    monkeypatch.setattr(config_cmd, "_configure_provider_keys", _set_keys)
+    def _configure(path):
+        _set_keys(path)
+        return True
+
+    monkeypatch.setattr(config_cmd, "_configure_provider_keys", _configure)
     monkeypatch.setattr(
         config_cmd, "_select_active_provider", lambda _path: "openai"
     )
