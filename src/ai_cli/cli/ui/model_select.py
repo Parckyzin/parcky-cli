@@ -7,10 +7,14 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
-from ai_cli.cli.ui.renderers.select_table import TableColumnSpec, render_table
 from ai_cli.cli.ui.console import console
 from ai_cli.cli.ui.prompts import prompt
 from ai_cli.cli.ui.provider_select import select_provider
+from ai_cli.cli.ui.renderers.select_table import (
+    TableColumnSpec,
+    render_table,
+    strip_ansi,
+)
 
 _MANUAL_LABEL = "✍ Type manually..."
 _CHANGE_PROVIDER_LABEL = "Change provider"
@@ -336,7 +340,7 @@ def _model_columns() -> list[TableColumnSpec[object]]:
         TableColumnSpec(
             header="Model",
             render=lambda opt, _state, _idx, styles, _theme: Text(
-                opt.label, style=styles.label_style
+                strip_ansi(opt.label), style=styles.label_style
             ),
         ),
         TableColumnSpec(

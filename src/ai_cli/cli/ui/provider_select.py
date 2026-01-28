@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from rich.console import Console, Group
 from rich.text import Text
 
-from ai_cli.core.common.enums import AvailableProviders
-
 from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
-from ai_cli.cli.ui.renderers.select_table import TableColumnSpec, render_table
 from ai_cli.cli.ui.console import console
 from ai_cli.cli.ui.prompts import prompt
+from ai_cli.cli.ui.renderers.select_table import (
+    TableColumnSpec,
+    render_table,
+    strip_ansi,
+)
+from ai_cli.core.common.enums import AvailableProviders
 
 _MANUAL_LABEL = "Type manually..."
 _MANUAL_VALUE = "__manual__"
@@ -262,13 +265,13 @@ def _provider_columns() -> list[TableColumnSpec[str]]:
         TableColumnSpec(
             header="Provider",
             render=lambda opt, _state, _idx, styles, _theme: Text(
-                opt.label, style=styles.label_style
+                strip_ansi(opt.label), style=styles.label_style
             ),
         ),
         TableColumnSpec(
             header="Description",
             render=lambda opt, _state, _idx, styles, _theme: Text(
-                opt.description or "", style=styles.row_style
+                strip_ansi(opt.description or ""), style=styles.row_style
             ),
         ),
         TableColumnSpec(
