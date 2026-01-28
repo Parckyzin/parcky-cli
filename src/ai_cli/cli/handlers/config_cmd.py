@@ -7,24 +7,28 @@ from pathlib import Path
 import typer
 from rich.text import Text
 
+from ai_cli.config import loader
 from ai_cli.config.paths import get_global_env_path
-from ai_cli.config.settings import ConfigEntry, list_config_entries
+from ai_cli.config.settings import ConfigEntry, list_config_entries, needs_init
 from ai_cli.config.writer import (
     read_ai_provider,
     read_env_value,
     set_ai_provider,
+    set_provider_api_key,
     set_env_value,
 )
-from ai_cli.core.exceptions import AICliError, ExitCode
+from ai_cli.core.exceptions import AICliError
+from ai_cli.core.common.enums import AvailableProviders
+from ai_cli.infrastructure.model_catalog import ModelCatalog
 
-from ..context import get_context
 from ..ui.console import console
 from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.select import SelectOption, SelectState, select
 from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.panels import config_hint_panel, config_settings_table
-from ..ui.prompts import confirm, prompt
+from ..ui.prompts import confirm, prompt, secret_prompt
+from ..ui.model_select import interactive_model_select
 from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
@@ -130,7 +134,9 @@ def register(app: typer.Typer) -> None:
         select_provider: bool = typer.Option(
             False, "--provider", "-p", help="Select AI provider"
         ),
-        action: str | None = typer.Argument(None, help="Optional action (provider)"),
+        action: str | None = typer.Argument(
+            None, help="Optional action (provider, init)"
+        ),
     ) -> None:
         """
         🔧 Show ai-cli configuration (read-only).
@@ -138,12 +144,27 @@ def register(app: typer.Typer) -> None:
         Examples:
             ai-cli config                    # Show current config
             ai-cli config -e                 # Edit mode (coming soon)
+            ai-cli config init               # Run onboarding wizard
         """
         debug = False
         try:
-            ctx = get_context()
-            debug = ctx.config.debug
+            settings_dict = loader.build_settings_dict()
+            debug = bool(settings_dict.get("debug", False))
             global_path = get_global_env_path()
+
+            if action == "init":
+                _run_init_flow(global_path)
+                _show_config_status(global_path)
+                return
+
+            if needs_init():
+                _run_init_flow(global_path)
+                if edit:
+                    _run_edit_flow(global_path)
+                    return
+                _show_config_status(global_path)
+                return
+
             if edit:
                 _run_edit_flow(global_path)
                 return
@@ -154,6 +175,8 @@ def register(app: typer.Typer) -> None:
                 selected = prompt_provider_select(current=current_provider or None)
                 if not selected:
                     console.print("[yellow]Cancelled.[/yellow]")
+                    return
+                if not _ensure_provider_key(selected, global_path):
                     return
                 set_ai_provider(global_path, selected)
                 set_env_value(global_path, "AI_MODEL", "")
@@ -172,6 +195,9 @@ def register(app: typer.Typer) -> None:
             _show_config_status(global_path)
         except AICliError as exc:
             exit_with_error(exc, debug=debug)
+        except (KeyboardInterrupt, typer.Abort):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return
         except typer.Exit:
             raise
         except Exception as exc:
@@ -208,6 +234,252 @@ def _show_config_status(global_path: Path) -> None:
             "Tip: To edit editable values, run: parcky-cli config -e"
         )
     )
+
+
+def _run_init_flow(global_path: Path) -> None:
+    console.print("[bold]🔧 Config Init[/bold]")
+    console.print("[dim]Let's set up the essentials.[/dim]\n")
+
+    if not _configure_provider_keys(global_path):
+        console.print("[yellow]Init cancelled.[/yellow]")
+        return
+
+    provider = _select_active_provider(global_path)
+    if not provider:
+        console.print("[yellow]Init cancelled.[/yellow]")
+        return
+
+    model_name = _select_model_name(provider)
+    if not model_name:
+        console.print("[yellow]Init cancelled.[/yellow]")
+        return
+
+    ai_limit = _prompt_int_value(
+        label="ai_max_context_chars",
+        min_value=1000,
+        default=_current_int_value(global_path, "AI_MAX_CONTEXT_CHARS", 35000),
+    )
+    if ai_limit is None:
+        console.print("[yellow]Init cancelled.[/yellow]")
+        return
+
+    git_limit = _prompt_int_value(
+        label="git_max_diff_size",
+        min_value=100,
+        default=_current_int_value(global_path, "GIT_MAX_DIFF_SIZE", 10000),
+    )
+    if git_limit is None:
+        console.print("[yellow]Init cancelled.[/yellow]")
+        return
+
+    summary = (
+        f"Provider: {provider}\n"
+        f"Model: {model_name}\n"
+        f"ai_max_context_chars: {ai_limit}\n"
+        f"git_max_diff_size: {git_limit}"
+    )
+    if not modal_confirm(title="Apply settings?", body=summary, variant="info"):
+        console.print("[yellow]No changes made.[/yellow]")
+        return
+
+    set_ai_provider(global_path, provider)
+    set_env_value(global_path, "AI_MODEL", model_name)
+    set_env_value(global_path, "AI_MAX_CONTEXT_CHARS", str(ai_limit))
+    set_env_value(global_path, "GIT_MAX_DIFF_SIZE", str(git_limit))
+    console.print("[bold green]✅ Configuration saved.[/bold green]")
+
+
+def _configure_provider_keys(global_path: Path) -> bool:
+    providers = [p for p in AvailableProviders if p.needs_api_key()]
+    while True:
+        options: list[SelectOption[AvailableProviders | str]] = []
+        for provider in providers:
+            status = "set" if _has_provider_key(provider, global_path) else "missing"
+            options.append(
+                SelectOption(
+                    value=provider,
+                    label=provider.value,
+                    description=f"API key {status}",
+                )
+            )
+        options.append(
+            SelectOption(value="Continue", label="Continue", description=None)
+        )
+
+        selection = _select_option(options, "Manage API keys")
+        if selection is None:
+            return False
+        if selection == "Continue":
+            return True
+        if isinstance(selection, AvailableProviders):
+            _set_provider_key(selection, global_path)
+
+
+def _set_provider_key(provider: AvailableProviders, global_path: Path) -> None:
+    new_key = secret_prompt(f"Enter {provider.value} API key").strip()
+    if not new_key:
+        console.print("[yellow]No API key provided.[/yellow]")
+        return
+    set_provider_api_key(global_path, provider, new_key)
+    console.print(f"[bold green]✅ {provider.value} key saved.[/bold green]")
+
+
+def _select_active_provider(global_path: Path) -> str | None:
+    while True:
+        ready = _ready_providers(global_path)
+        if not ready:
+            console.print(
+                "[yellow]No providers are ready. Add an API key to continue.[/yellow]"
+            )
+            if not _configure_provider_keys(global_path):
+                return None
+            ready = _ready_providers(global_path)
+            if not ready:
+                return None
+
+        selected = prompt_provider_select(
+            current=read_ai_provider(global_path) or None,
+            providers=ready,
+        )
+        if not selected:
+            return None
+        if _ensure_provider_key(selected, global_path):
+            return selected
+
+
+def _select_model_name(provider: str) -> str | None:
+    try:
+        provider_enum = AvailableProviders(provider)
+    except ValueError:
+        console.print("[yellow]Unknown provider.[/yellow]")
+        return None
+
+    api_key = _resolve_provider_api_key(provider_enum)
+    if provider_enum.needs_api_key() and not api_key:
+        console.print(
+            f"[yellow]No API key set for {provider_enum.value}. "
+            "Add one to list models.[/yellow]"
+        )
+        return None
+
+    catalog = ModelCatalog()
+    try:
+        models = catalog.list_models(provider_enum, api_key)
+    except AICliError as exc:
+        console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
+        models = []
+
+    selected: list[str] = []
+
+    def _on_select(model: str) -> None:
+        selected.append(model)
+
+    interactive_model_select(
+        models,
+        "",
+        _on_select,
+        current_provider=provider,
+        on_change_provider=None,
+    )
+
+    return selected[0] if selected else None
+
+
+def _current_int_value(path: Path, env_key: str, fallback: int) -> int:
+    raw = read_env_value(path, env_key)
+    if raw.isdigit():
+        return int(raw)
+    return fallback
+
+
+def _select_option(
+    options: list[SelectOption[AvailableProviders | str]],
+    title: str,
+) -> AvailableProviders | str | None:
+    try:
+        return select(options, title=title)
+    except ImportError:
+        console.print("[yellow]prompt_toolkit not available. Using text fallback.[/yellow]")
+    except Exception as exc:
+        console.print(
+            f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
+        )
+
+    state = SelectState.from_options(options)
+    console.print(render_table(state, title=title, show_index=True))
+    user_input = prompt("Enter number or blank to cancel").strip()
+    if not user_input or not user_input.isdigit():
+        return None
+    choice = int(user_input)
+    if 1 <= choice <= len(state.options):
+        return state.options[choice - 1].value
+    return None
+
+
+def _ensure_provider_key(provider: str, global_path: Path) -> bool:
+    try:
+        provider_enum = AvailableProviders(provider)
+    except ValueError:
+        return True
+
+    if not provider_enum.needs_api_key():
+        return True
+
+    if _has_provider_key(provider_enum, global_path):
+        return True
+
+    console.print(
+        f"[yellow]No API key set for {provider_enum.value}. "
+        "Add one to use this provider.[/yellow]"
+    )
+    if not confirm("Add API key now?", default=True):
+        return False
+    new_key = prompt(f"Enter {provider_enum.value} API key").strip()
+    if not new_key:
+        console.print("[yellow]No API key provided. Cancelled.[/yellow]")
+        return False
+    set_provider_api_key(global_path, provider_enum, new_key)
+    return True
+
+
+def _has_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
+    env_key = provider.env_api_key_name()
+    if read_env_value(global_path, env_key):
+        return True
+    if read_env_value(global_path, "AI_API_KEY"):
+        return True
+    if provider == AvailableProviders.GOOGLE and read_env_value(
+        global_path, "GEMINI_API_KEY"
+    ):
+        return True
+    return False
+
+
+def _resolve_provider_api_key(provider: AvailableProviders) -> str | None:
+    values = loader.load_settings_values()
+    env_key = provider.env_api_key_name()
+    direct = values.get(env_key)
+    if direct:
+        return str(direct).strip() or None
+    legacy = values.get("AI_API_KEY")
+    if legacy:
+        return str(legacy).strip() or None
+    if provider == AvailableProviders.GOOGLE:
+        gemini = values.get("GEMINI_API_KEY")
+        if gemini:
+            return str(gemini).strip() or None
+    return None
+
+
+def _ready_providers(global_path: Path) -> list[AvailableProviders]:
+    ready: list[AvailableProviders] = []
+    for provider in AvailableProviders:
+        if not provider.needs_api_key():
+            ready.append(provider)
+            continue
+        if _has_provider_key(provider, global_path):
+            ready.append(provider)
+    return ready
 
 
 def _run_edit_flow(global_path: Path) -> None:
@@ -379,9 +651,17 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
     console.print(f"[bold green]✅ {entry.key} updated.[/bold green]")
 
 
-def _prompt_int_value(*, label: str, min_value: int) -> int | None:
+def _prompt_int_value(
+    *,
+    label: str,
+    min_value: int,
+    default: int | None = None,
+) -> int | None:
     while True:
-        raw_value = prompt(f"Enter new value for {label} (min {min_value})").strip()
+        raw_value = prompt(
+            f"Enter new value for {label} (min {min_value})",
+            default=str(default) if default is not None else None,
+        ).strip()
         if not raw_value:
             console.print("[yellow]No changes made.[/yellow]")
             return None
