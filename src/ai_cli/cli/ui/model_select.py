@@ -6,16 +6,11 @@ from typing import Callable, Literal
 from rich.console import Console, Group
 from rich.text import Text
 
-from .components.select import (
-    SelectOption,
-    SelectState,
-    TableColumnSpec,
-    handle_key,
-    render_table,
-)
-from .console import console
-from .prompts import prompt
-from .provider_select import select_provider
+from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.renderers.select_table import TableColumnSpec, render_table
+from ai_cli.cli.ui.console import console
+from ai_cli.cli.ui.prompts import prompt
+from ai_cli.cli.ui.provider_select import select_provider
 
 _MANUAL_LABEL = "✍ Type manually..."
 _CHANGE_PROVIDER_LABEL = "Change provider"

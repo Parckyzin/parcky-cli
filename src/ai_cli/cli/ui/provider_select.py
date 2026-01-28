@@ -7,15 +7,10 @@ from rich.text import Text
 
 from ai_cli.core.common.enums import AvailableProviders
 
-from .components.select import (
-    SelectOption,
-    SelectState,
-    TableColumnSpec,
-    handle_key,
-    render_table,
-)
-from .console import console
-from .prompts import prompt
+from ai_cli.cli.ui.components.select import SelectOption, SelectState, handle_key
+from ai_cli.cli.ui.renderers.select_table import TableColumnSpec, render_table
+from ai_cli.cli.ui.console import console
+from ai_cli.cli.ui.prompts import prompt
 
 _MANUAL_LABEL = "Type manually..."
 _MANUAL_VALUE = "__manual__"
