@@ -13,20 +13,21 @@ def load_profiles() -> dict[str, dict[str, str]]:
     Load profiles from JSON files.
 
     Priority:
-    - Global (~/.config/ai-cli/ai-profiles.json)
+    - Local (./ai-profiles.json) overrides Global (~/.config/ai-cli/ai-profiles.json)
     """
     profiles: dict[str, dict[str, str]] = {}
 
-    path = paths.get_global_profiles_path()
-    if not path.exists():
-        return profiles
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return profiles
+    # Load global first, then local to override (explicitly documented)
+    for path in (paths.get_global_profiles_path(), paths.get_local_profiles_path()):
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
 
-    if isinstance(data, dict):
-        profiles.update(_normalize_profiles(data))
+        if isinstance(data, dict):
+            profiles.update(_normalize_profiles(data))
 
     return profiles
 

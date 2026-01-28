@@ -32,13 +32,3 @@ class AvailableProviders(StrEnum):
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
     LOCAL = "local"
-
-    def needs_api_key(self) -> bool:
-        """Determine if the provider requires an API key."""
-        return self not in {
-            AvailableProviders.LOCAL,
-        }
-
-    def env_api_key_name(self) -> str:
-        """Return the provider-specific API key env var name."""
-        return f"{self.value.upper()}_API_KEY"

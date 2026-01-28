@@ -2,8 +2,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
-from ai_cli.config.settings import ConfigEntry
 from ai_cli.core.models import PullRequest
 
 
@@ -25,28 +23,16 @@ def pull_request_preview_panel(pr: PullRequest) -> Panel:
     )
 
 
-def config_settings_table(
-    rows: list[ConfigEntry],
-    *,
-    theme: Theme = DEFAULT_THEME,
-) -> Table:
+def config_settings_table(rows: list[tuple[str, str, str, str]]) -> Table:
     """Build a settings table for config display."""
-    table = Table(show_header=True, header_style=theme.header_style)
-    table.add_column("Key", no_wrap=True, width=24)
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Key", no_wrap=True, width=22)
     table.add_column("Value")
-    table.add_column("Editable", width=9, justify="center")
     table.add_column("Source", width=10)
+    table.add_column("Description")
 
-    for entry in rows:
-        editable = "yes" if entry.editable else "no"
-        table.add_row(entry.key, entry.value, editable, entry.source)
+    for idx, (key, value, source, description) in enumerate(rows, start=1):
+        table.add_row(str(idx), key, value, source, description)
 
     return table
-
-
-def config_hint_panel(message: str, *, theme: Theme = DEFAULT_THEME) -> Panel:
-    return Panel(
-        Text(message, style=theme.muted_style),
-        border_style=theme.muted_style,
-        padding=(0, 1),
-    )

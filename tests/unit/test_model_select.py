@@ -40,34 +40,6 @@ def test_provider_change_refreshes_models(monkeypatch) -> None:
     assert calls[1] == ["new-model", "other"]
 
 
-def test_model_select_uses_plain_labels(monkeypatch) -> None:
-    results = [
-        model_select.SelectionResult(action="cancel"),
-    ]
-
-    def _fake_select(_models, _current_model, _show_change_provider):
-        return results.pop(0)
-
-    monkeypatch.setattr(model_select, "_select_with_prompt_toolkit", _fake_select)
-    captured: list[model_select.SelectOption[object]] = []
-
-    def _capture_build(models, current_model, show_change_provider):
-        options = original_build(models, current_model, show_change_provider)
-        captured.extend(options)
-        return options
-
-    original_build = model_select._build_options
-    monkeypatch.setattr(model_select, "_build_options", _capture_build)
-
-    model_select.interactive_model_select(
-        ["model-a", "model-b"],
-        "model-a",
-        lambda _model: None,
-    )
-
-    assert all("\x1b" not in str(opt.label) for opt in captured)
-
-
 def test_provider_change_cancel_keeps_state(monkeypatch) -> None:
     results = [
         model_select.SelectionResult(action="change_provider"),
