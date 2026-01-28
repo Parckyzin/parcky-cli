@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from ai_cli.config import paths
-from ai_cli.config.settings import AppConfig
+from ai_cli.config.settings import AppConfig, needs_init
 from ai_cli.config.writer import set_env_value
 from ai_cli.core.exceptions import ConfigurationError
 
@@ -129,3 +129,42 @@ def test_ai_provider_falls_back_to_ai_host(monkeypatch, tmp_path):
     assert config.ai.ai_provider is None
     assert config.ai.ai_host == "local"
     assert config.ai.effective_provider == "local"
+
+
+def test_provider_specific_api_key_resolved(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+
+    config = AppConfig.load()
+
+    assert config.ai.api_key == "openai-key"
+
+
+def test_api_key_fallback_to_legacy(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("AI_API_KEY", "legacy-key")
+
+    config = AppConfig.load()
+
+    assert config.ai.api_key == "legacy-key"
+
+
+def test_needs_init_when_missing_provider_model_key(monkeypatch, tmp_path):
+    global_env = tmp_path / "global.env"
+    monkeypatch.setattr(paths, "get_global_env_path", lambda: global_env)
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    monkeypatch.delenv("AI_HOST", raising=False)
+    monkeypatch.delenv("AI_MODEL", raising=False)
+    monkeypatch.delenv("MODEL_NAME", raising=False)
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert needs_init() is True
