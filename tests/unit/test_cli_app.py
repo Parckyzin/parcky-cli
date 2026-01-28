@@ -33,3 +33,4 @@ def test_config_help_includes_edit_flag():
     assert result.exit_code == 0
     assert "-e" in result.output
     assert "--edit" in result.output
+    assert "init" in result.output
