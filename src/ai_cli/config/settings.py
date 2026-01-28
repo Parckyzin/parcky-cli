@@ -2,6 +2,8 @@
 Configuration management for AI CLI application using pydantic-settings.
 """
 
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -219,3 +221,78 @@ class AppConfig(BaseSettings):
     def is_debug_enabled(self) -> bool:
         """Check if debug mode is enabled."""
         return self.debug
+
+
+@dataclass(frozen=True)
+class ConfigEntry:
+    key: str
+    value: str
+    editable: bool
+    source: str
+    description: str
+    category: str | None
+    env_key: str | None
+    min_value: int | None
+
+
+def list_config_entries(global_path: Path) -> list[ConfigEntry]:
+    settings_dict = loader.build_settings_dict()
+    ai_values = settings_dict.get("ai", {})
+    git_values = settings_dict.get("git", {})
+    ai_config = AIConfig.model_construct(**ai_values)
+    git_config = GitConfig.model_construct(**git_values)
+
+    return [
+        ConfigEntry(
+            key="ai_max_context_chars",
+            value=str(ai_config.max_context_chars),
+            editable=True,
+            source=loader.resolve_setting_source(
+                ["AI_MAX_CONTEXT_CHARS"], global_path
+            ),
+            description="Max chars sent to AI context",
+            category="AI limits",
+            env_key="AI_MAX_CONTEXT_CHARS",
+            min_value=1000,
+        ),
+        ConfigEntry(
+            key="git_max_diff_size",
+            value=str(git_config.max_diff_size),
+            editable=True,
+            source=loader.resolve_setting_source(["GIT_MAX_DIFF_SIZE"], global_path),
+            description="Max diff size for AI analysis",
+            category="Git limits",
+            env_key="GIT_MAX_DIFF_SIZE",
+            min_value=100,
+        ),
+        ConfigEntry(
+            key="ai_system_instruction",
+            value=_truncate(ai_config.system_instruction or "", 80),
+            editable=False,
+            source=loader.resolve_setting_source(
+                ["AI_SYSTEM_INSTRUCTION"], global_path
+            ),
+            description="System prompt (read-only)",
+            category=None,
+            env_key=None,
+            min_value=None,
+        ),
+        ConfigEntry(
+            key="model",
+            value=ai_config.model_name,
+            editable=False,
+            source=loader.resolve_setting_source(
+                ["AI_MODEL", "MODEL_NAME"], global_path
+            ),
+            description="AI model name (read-only)",
+            category=None,
+            env_key=None,
+            min_value=None,
+        ),
+    ]
+
+
+def _truncate(value: str, max_len: int) -> str:
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 3] + "..."
