@@ -23,6 +23,7 @@ from ai_cli.infrastructure.model_catalog import ModelCatalog
 
 from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.select import SelectOption, SelectState, select
+from ..ui.components.theme import DEFAULT_THEME
 from ..ui.console import console
 from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
@@ -30,6 +31,7 @@ from ..ui.model_select import interactive_model_select
 from ..ui.panels import config_hint_panel, config_settings_table
 from ..ui.prompts import confirm, prompt, secret_prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
+from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, VALUE_INPUT_FOOTER, render_frame
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
 
@@ -260,7 +262,8 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    ai_limit = _prompt_int_value(
+    ai_limit = _prompt_int_value_with_frame(
+        title="AI limits",
         label="ai_max_context_chars",
         min_value=1000,
         default=_current_int_value(global_path, "AI_MAX_CONTEXT_CHARS", 35000),
@@ -269,7 +272,8 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    git_limit = _prompt_int_value(
+    git_limit = _prompt_int_value_with_frame(
+        title="Git limits",
         label="git_max_diff_size",
         min_value=100,
         default=_current_int_value(global_path, "GIT_MAX_DIFF_SIZE", 10000),
@@ -356,13 +360,24 @@ def _configure_provider_keys(global_path: Path) -> bool:
     providers = [p for p in AvailableProviders if p.needs_api_key()]
     while True:
         options: list[SelectOption[AvailableProviders | str]] = []
+        has_any_key = False
         for provider in providers:
             status = "set" if _has_provider_key(provider, global_path) else "missing"
+            if status == "set":
+                has_any_key = True
             options.append(
                 SelectOption(
                     value=provider,
                     label=provider,
                     description=f"API key {status}",
+                )
+            )
+        if has_any_key:
+            options.append(
+                SelectOption(
+                    value="Remove key",
+                    label="Remove key",
+                    description="Delete a saved API key",
                 )
             )
         options.append(
@@ -374,17 +389,60 @@ def _configure_provider_keys(global_path: Path) -> bool:
             return False
         if selection == "Continue":
             return True
+        if selection == "Remove key":
+            if not _remove_provider_key_flow(global_path):
+                return False
+            continue
         if isinstance(selection, AvailableProviders):
-            _set_provider_key(selection, global_path)
+            if not _set_provider_key(selection, global_path):
+                return False
 
 
-def _set_provider_key(provider: AvailableProviders, global_path: Path) -> None:
+def _set_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
     new_key = secret_prompt(f"Enter {provider.value} API key").strip()
     if not new_key:
-        console.print("[yellow]No API key provided.[/yellow]")
-        return
+        console.print("[yellow]Cancelled.[/yellow]")
+        return False
     set_provider_api_key(global_path, provider, new_key)
     console.print(f"[bold green]✅ {provider.value} key saved.[/bold green]")
+    return True
+
+
+def _remove_provider_key_flow(global_path: Path) -> bool:
+    providers = [
+        provider
+        for provider in AvailableProviders
+        if provider.needs_api_key() and _has_provider_key(provider, global_path)
+    ]
+    if not providers:
+        console.print("[yellow]No API keys to remove.[/yellow]")
+        return True
+    options: list[SelectOption[AvailableProviders | str]] = [
+        SelectOption(
+            value=provider,
+            label=provider,
+            description="API key set",
+        )
+        for provider in providers
+    ]
+    options.append(
+        SelectOption(value="Back", label="Back", description="Return")
+    )
+    selection = _select_option(options, "Remove API key")
+    if selection is None:
+        return False
+    if selection == "Back":
+        return True
+    if isinstance(selection, AvailableProviders):
+        body = f"Remove saved API key for {selection.value}?"
+        if not modal_confirm(title="Remove API key?", body=body, variant="warn"):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return False
+        set_env_value(global_path, selection.env_api_key_name(), "")
+        console.print(
+            f"[bold green]✅ {selection.value} key removed.[/bold green]"
+        )
+    return True
 
 
 def _select_active_provider(global_path: Path) -> str | None:
@@ -392,7 +450,14 @@ def _select_active_provider(global_path: Path) -> str | None:
         ready = _ready_providers(global_path)
         if not ready:
             console.print(
-                "[yellow]No providers are ready. Add an API key to continue.[/yellow]"
+                render_frame(
+                    title="Select provider",
+                    body=Text(
+                        "No providers are ready. Add an API key to continue.",
+                        style=DEFAULT_THEME.frame_warn_style,
+                    ),
+                    footer="Redirecting to Manage API keys...",
+                )
             )
             if not _configure_provider_keys(global_path):
                 return None
@@ -471,7 +536,13 @@ def _select_option(
         )
 
     state = SelectState.from_options(options)
-    console.print(render_table(state, title=title, show_index=True))
+    console.print(
+        render_frame(
+            title=title,
+            body=render_table(state, title=None, show_index=True),
+            footer=TEXT_FALLBACK_FOOTER,
+        )
+    )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
@@ -573,7 +644,13 @@ def _select_edit_category() -> str | None:
         )
 
     state = SelectState.from_options(options)
-    console.print(render_table(state, title="Edit configuration", show_index=True))
+    console.print(
+        render_frame(
+            title="Edit configuration",
+            body=render_table(state, title=None, show_index=True),
+            footer=TEXT_FALLBACK_FOOTER,
+        )
+    )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
@@ -622,10 +699,15 @@ def _select_edit_entry(
     state = SelectState.from_options(options)
 
     def _render_table(state_: SelectState[ConfigEntry | str]):
-        return render_table(
-            state_,
+        return render_frame(
             title=title,
-            columns=_edit_columns(),
+            body=render_table(
+                state_,
+                title=None,
+                columns=_edit_columns(),
+            ),
+            footer="↑/↓ move • Enter select • Esc cancel",
+            align=True,
         )
 
     try:
@@ -640,7 +722,13 @@ def _select_edit_entry(
         )
 
     console.print(
-        render_table(state, title=title, show_index=True, columns=_edit_columns())
+        render_frame(
+            title=title,
+            body=render_table(
+                state, title=None, show_index=True, columns=_edit_columns()
+            ),
+            footer=TEXT_FALLBACK_FOOTER,
+        )
     )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
@@ -700,7 +788,8 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
         console.print("[yellow]Selected setting is read-only.[/yellow]")
         return
 
-    new_value = _prompt_int_value(
+    new_value = _prompt_int_value_with_frame(
+        title="Edit setting",
         label=entry.key,
         min_value=entry.min_value,
     )
@@ -742,3 +831,30 @@ def _prompt_int_value(
             console.print(f"[red]{label} must be at least {min_value}.[/red]")
             continue
         return value
+
+
+def _prompt_int_value_with_frame(
+    *,
+    title: str,
+    label: str,
+    min_value: int,
+    default: int | None = None,
+) -> int | None:
+    body = Text.assemble(
+        ("Enter a value for ", "dim"),
+        (label, "bold"),
+        (f" (min {min_value})", "dim"),
+    )
+    if default is not None:
+        body = Text.assemble(
+            body,
+            Text(f"\nDefault: {default}", style="dim"),
+        )
+    console.print(
+        render_frame(
+            title=title,
+            body=body,
+            footer=VALUE_INPUT_FOOTER,
+        )
+    )
+    return _prompt_int_value(label=label, min_value=min_value, default=default)
