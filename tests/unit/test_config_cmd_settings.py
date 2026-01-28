@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from ai_cli.cli import main as cli_main
 from ai_cli.cli.handlers import config_cmd
-from ai_cli.config import loader, paths
+from ai_cli.config import paths
 from ai_cli.config.writer import read_env_value, set_env_value
 
 
@@ -28,7 +28,9 @@ def test_config_list_shows_values_and_sources(tmp_path, monkeypatch) -> None:
 
     _patch_paths(monkeypatch, global_path)
     _patch_context(monkeypatch)
-    monkeypatch.setattr(config_cmd, "prompt", lambda _msg: "")
+    monkeypatch.setattr(
+        config_cmd, "prompt", lambda _msg: (_ for _ in ()).throw(AssertionError)
+    )
 
     runner = CliRunner()
     result = runner.invoke(cli_main.app, ["config"])
@@ -39,62 +41,112 @@ def test_config_list_shows_values_and_sources(tmp_path, monkeypatch) -> None:
     assert "git_max_diff_size" in result.output
     assert "200" in result.output
     assert "global" in result.output
+    assert "Tip: To edit editable values, run: parcky-cli config -e" in result.output
 
 
-def test_config_update_ai_max_context_chars_persists(tmp_path, monkeypatch) -> None:
+def test_config_read_only_does_not_touch_prompt(tmp_path, monkeypatch) -> None:
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+
+    _patch_paths(monkeypatch, global_path)
+    _patch_context(monkeypatch)
+    monkeypatch.setattr(
+        config_cmd, "prompt", lambda _msg: (_ for _ in ()).throw(AssertionError)
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(cli_main.app, ["config"])
+
+    assert result.exit_code == 0
+    assert "Tip: To edit editable values, run: parcky-cli config -e" in result.output
+
+
+def test_config_edit_flow_basic_exit(tmp_path, monkeypatch) -> None:
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+
+    _patch_paths(monkeypatch, global_path)
+    _patch_context(monkeypatch)
+    monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: "Exit")
+
+    runner = CliRunner()
+    result = runner.invoke(cli_main.app, ["config", "-e"])
+
+    assert result.exit_code == 0
+
+
+def test_config_edit_ai_max_context_chars_persists(tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
     global_path.write_text("")
 
     _patch_paths(monkeypatch, global_path)
     _patch_context(monkeypatch)
 
-    inputs = iter(["1", "12000"])
-    monkeypatch.setattr(config_cmd, "prompt", lambda _msg: next(inputs))
+    entry = next(
+        e for e in config_cmd.list_config_entries(global_path)
+        if e.key == "ai_max_context_chars"
+    )
+    categories = iter(["AI limits", "Exit"])
+    selections = iter([entry, None])
+    monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
+    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
+    monkeypatch.setattr(config_cmd, "prompt", lambda _msg: "12000")
+    monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
     runner = CliRunner()
-    result = runner.invoke(cli_main.app, ["config"])
+    result = runner.invoke(cli_main.app, ["config", "-e"])
 
     assert result.exit_code == 0
     assert read_env_value(global_path, "AI_MAX_CONTEXT_CHARS") == "12000"
 
-    settings_dict = loader.build_settings_dict()
-    assert settings_dict["ai"]["max_context_chars"] == 12000
 
-
-def test_config_invalid_git_max_diff_size_not_persisted(tmp_path, monkeypatch) -> None:
+def test_config_edit_cancel_does_not_persist(tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
     global_path.write_text("")
 
     _patch_paths(monkeypatch, global_path)
     _patch_context(monkeypatch)
 
-    inputs = iter(["2", "abc", ""])
-    monkeypatch.setattr(config_cmd, "prompt", lambda _msg: next(inputs))
+    entry = next(
+        e for e in config_cmd.list_config_entries(global_path)
+        if e.key == "git_max_diff_size"
+    )
+    categories = iter(["Git limits", "Exit"])
+    selections = iter([entry, None])
+    monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
+    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
+    monkeypatch.setattr(config_cmd, "prompt", lambda _msg: "120")
+    monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: False)
 
     runner = CliRunner()
-    result = runner.invoke(cli_main.app, ["config"])
+    result = runner.invoke(cli_main.app, ["config", "-e"])
 
     assert result.exit_code == 0
-    assert "Please enter a valid integer" in result.output
     assert read_env_value(global_path, "GIT_MAX_DIFF_SIZE") == ""
 
 
-def test_config_update_writes_only_global(tmp_path, monkeypatch) -> None:
+def test_config_edit_rejects_invalid_value(tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
     global_path.write_text("")
-    local_path = tmp_path / ".env"
-    set_env_value(local_path, "AI_MAX_CONTEXT_CHARS", "999")
 
-    monkeypatch.chdir(tmp_path)
     _patch_paths(monkeypatch, global_path)
     _patch_context(monkeypatch)
 
-    inputs = iter(["1", "15000"])
+    entry = next(
+        e for e in config_cmd.list_config_entries(global_path)
+        if e.key == "git_max_diff_size"
+    )
+    categories = iter(["Git limits", "Exit"])
+    selections = iter([entry, None])
+    inputs = iter(["0", ""])
+    monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
+    monkeypatch.setattr(config_cmd, "_select_edit_entry", lambda _entries, title: next(selections))
     monkeypatch.setattr(config_cmd, "prompt", lambda _msg: next(inputs))
+    monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
     runner = CliRunner()
-    result = runner.invoke(cli_main.app, ["config"])
+    result = runner.invoke(cli_main.app, ["config", "-e"])
 
     assert result.exit_code == 0
-    assert read_env_value(global_path, "AI_MAX_CONTEXT_CHARS") == "15000"
-    assert read_env_value(local_path, "AI_MAX_CONTEXT_CHARS") == "999"
+    assert "must be at least" in result.output
+    assert read_env_value(global_path, "GIT_MAX_DIFF_SIZE") == ""

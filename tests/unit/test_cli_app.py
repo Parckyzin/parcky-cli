@@ -2,6 +2,8 @@
 CLI app registration tests.
 """
 
+from typer.testing import CliRunner
+
 from ai_cli.cli.main import app
 
 
@@ -23,3 +25,11 @@ def test_cli_commands_registered():
         "version",
     }
     assert expected.issubset(command_names)
+
+
+def test_config_help_includes_edit_flag():
+    runner = CliRunner()
+    result = runner.invoke(app, ["config", "--help"])
+    assert result.exit_code == 0
+    assert "-e" in result.output
+    assert "--edit" in result.output
