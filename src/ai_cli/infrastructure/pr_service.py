@@ -60,6 +60,8 @@ class GitHubPRService(PullRequestServiceInterface):
                 pr.title,
                 "--body",
                 pr.body,
+                "--base",
+                base_branch,
                 "--web",
             ]
 
