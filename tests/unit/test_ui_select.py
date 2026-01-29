@@ -2,7 +2,7 @@ from rich.console import Console
 from rich.text import Text
 
 from ai_cli.cli.ui.components import SelectOption, SelectState, Theme, handle_key
-from ai_cli.cli.ui.components.select.select import _render_select_frame
+from ai_cli.cli.ui.components.select.select import _render_select_shell
 from ai_cli.cli.ui.renderers.select_table import (
     TableColumnSpec,
     _compute_row_styles,
@@ -179,7 +179,7 @@ def test_default_columns_shape():
 def test_select_render_wraps_frame():
     options = [SelectOption(value="a", label="Option A")]
     state = SelectState.from_options(options)
-    renderable = _render_select_frame(state, title="Select Title", theme=Theme())
+    renderable = _render_select_shell(state, title="Select Title", theme=Theme())
     console = Console(
         color_system=None, force_terminal=False, markup=False, record=True
     )

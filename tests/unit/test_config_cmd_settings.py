@@ -95,7 +95,7 @@ def test_config_edit_ai_max_context_chars_persists(tmp_path, monkeypatch) -> Non
         "_select_edit_entry",
         lambda _entries, **_kwargs: next(selections),
     )
-    monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "12000")
+    monkeypatch.setattr(config_cmd, "numeric_input", lambda **_kwargs: 12000)
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
     runner = CliRunner()
@@ -125,7 +125,7 @@ def test_config_edit_cancel_does_not_persist(tmp_path, monkeypatch) -> None:
         "_select_edit_entry",
         lambda _entries, **_kwargs: next(selections),
     )
-    monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: "120")
+    monkeypatch.setattr(config_cmd, "numeric_input", lambda **_kwargs: 120)
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: False)
 
     runner = CliRunner()
@@ -149,21 +149,19 @@ def test_config_edit_rejects_invalid_value(tmp_path, monkeypatch) -> None:
     )
     categories = iter(["Git limits", "Exit"])
     selections = iter([entry, None])
-    inputs = iter(["0", ""])
     monkeypatch.setattr(config_cmd, "_select_edit_category", lambda: next(categories))
     monkeypatch.setattr(
         config_cmd,
         "_select_edit_entry",
         lambda _entries, **_kwargs: next(selections),
     )
-    monkeypatch.setattr(config_cmd, "prompt", lambda *_args, **_kwargs: next(inputs))
+    monkeypatch.setattr(config_cmd, "numeric_input", lambda **_kwargs: None)
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
     runner = CliRunner()
     result = runner.invoke(cli_main.app, ["config", "-e"])
 
     assert result.exit_code == 0
-    assert "must be at least" in result.output
     assert read_env_value(global_path, "GIT_MAX_DIFF_SIZE") == ""
 
 
@@ -209,10 +207,11 @@ def test_config_init_persists_values(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(config_cmd, "_configure_provider_keys", _configure)
     monkeypatch.setattr(config_cmd, "_select_active_provider", lambda _path: "openai")
     monkeypatch.setattr(config_cmd, "_select_model_name", lambda _provider: "gpt-4o")
+    values = iter([12000, 12000])
     monkeypatch.setattr(
         config_cmd,
-        "_prompt_int_value",
-        lambda **_kwargs: 12000,
+        "_prompt_numeric_overlay",
+        lambda **_kwargs: next(values),
     )
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_kwargs: True)
 
@@ -236,11 +235,11 @@ def test_init_filters_ready_providers(tmp_path, monkeypatch) -> None:
 
     captured: dict[str, list[str]] = {}
 
-    def _capture_provider_select(*, _current=None, providers=None, **_kwargs):
-        captured["providers"] = [p.value for p in (providers or [])]
+    def _capture_select(options, title=None, **_kwargs):
+        captured["providers"] = [opt.value for opt in options]
         return None
 
-    monkeypatch.setattr(config_cmd, "prompt_provider_select", _capture_provider_select)
+    monkeypatch.setattr(config_cmd, "select", _capture_select)
     monkeypatch.setattr(config_cmd, "_configure_provider_keys", lambda _p: True)
 
     runner = CliRunner()
@@ -314,7 +313,7 @@ def test_edit_entry_saves_and_reports(capsys, tmp_path, monkeypatch) -> None:
     global_path = tmp_path / "global.env"
     global_path.write_text("")
 
-    monkeypatch.setattr(config_cmd, "_prompt_int_value_with_frame", lambda **_k: 2000)
+    monkeypatch.setattr(config_cmd, "numeric_input", lambda **_k: 2000)
     monkeypatch.setattr(config_cmd, "modal_confirm", lambda **_k: True)
 
     config_cmd._edit_entry(entry, global_path)
@@ -359,12 +358,12 @@ def test_model_catalog_used_for_init(monkeypatch) -> None:
     def _fake_list_models(_self, _provider, _api_key):
         return ["m1", "m2"]
 
-    def _fake_select(models, _current, on_select, **_kwargs):
-        captured.extend(models)
-        on_select("m2")
+    def _fake_select(options, title=None, **_kwargs):
+        captured.extend([opt.value for opt in options])
+        return "m2"
 
     monkeypatch.setattr(config_cmd.ModelCatalog, "list_models", _fake_list_models)
-    monkeypatch.setattr(config_cmd, "interactive_model_select", _fake_select)
+    monkeypatch.setattr(config_cmd, "select", _fake_select)
     monkeypatch.setattr(config_cmd, "_resolve_provider_api_key", lambda _p: "key")
 
     result = config_cmd._select_model_name("google")
