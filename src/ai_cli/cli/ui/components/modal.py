@@ -12,6 +12,7 @@ from ai_cli.cli.ui.renderers.modal import (
     ModalVariant,
     render_modal,
 )
+from ai_cli.cli.ui.renderers.shell import render_shell
 
 ModalKey = Literal["enter", "esc", "q", "left", "right", "c-c"]
 
@@ -23,14 +24,14 @@ class ModalResult:
 
 
 def confirm(
-    *,
-    title: str,
-    body: str,
-    confirm_label: str = "Confirm",
-    cancel_label: str = "Cancel",
-    variant: ModalVariant = "info",
-    theme: Theme = DEFAULT_THEME,
-    key_source: Iterable[ModalKey] | None = None,
+        *,
+        title: str,
+        body: str,
+        confirm_label: str = "Confirm",
+        cancel_label: str = "Cancel",
+        variant: ModalVariant = "info",
+        theme: Theme = DEFAULT_THEME,
+        key_source: Iterable[ModalKey] | None = None,
 ) -> bool:
     result = modal(
         title=title,
@@ -47,13 +48,13 @@ def confirm(
 
 
 def modal(
-    *,
-    title: str,
-    body: str,
-    actions: list[ModalAction],
-    variant: ModalVariant = "info",
-    theme: Theme = DEFAULT_THEME,
-    key_source: Iterable[ModalKey] | None = None,
+        *,
+        title: str,
+        body: str,
+        actions: list[ModalAction],
+        variant: ModalVariant = "info",
+        theme: Theme = DEFAULT_THEME,
+        key_source: Iterable[ModalKey] | None = None,
 ) -> ModalResult:
     state = ModalState(actions=actions, index=0)
     if key_source is not None:
@@ -81,8 +82,18 @@ def modal(
             event.app.exit(result=ModalResult(None, True))
 
     result = run_prompt_toolkit(
-        render=lambda: render_modal(
-            state, title=title, body=body, variant=variant, theme=theme
+        render=lambda: render_shell(
+            title=title,
+            context=None,
+            body=render_modal(
+                state,
+                title=title,
+                body=body,
+                variant=variant,
+                theme=theme,
+            ),
+            footer="← → move • Enter select • Esc cancel",
+            theme=theme,
         ),
         bind_keys=_bind_keys,
     )
@@ -92,8 +103,8 @@ def modal(
 
 
 def _run_from_key_source(
-    state: ModalState,
-    key_source: Iterable[ModalKey],
+        state: ModalState,
+        key_source: Iterable[ModalKey],
 ) -> ModalResult:
     for key in key_source:
         result = handle_key(state, key)
