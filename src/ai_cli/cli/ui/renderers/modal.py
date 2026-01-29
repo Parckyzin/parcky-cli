@@ -3,11 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from rich.console import Group, RenderableType
-from rich.text import Text
+from prompt_toolkit.formatted_text import FormattedText
 
 from ai_cli.cli.ui.components.theme import DEFAULT_THEME, Theme
-from ai_cli.cli.ui.renderers.frame import render_frame
 
 ModalVariant = Literal["info", "warn", "error", "success"]
 
@@ -25,47 +23,43 @@ class ModalState:
 
 
 def render_modal(
-    state: ModalState,
-    *,
-    title: str,
-    body: str,
-    variant: ModalVariant = "info",
-    theme: Theme = DEFAULT_THEME,
-) -> RenderableType:
-    icon, variant_style = _variant_tokens(variant, theme)
+        state: ModalState,
+        *,
+        title: str,
+        body: str,
+        variant: ModalVariant = "info",
+        theme: Theme = DEFAULT_THEME,
+) -> FormattedText:
+    icon, _variant_class = _variant_tokens(variant, theme)
     title_text = f"{icon} {title}".strip()
-    body_text = Text(body, style=theme.modal_body_style)
-    actions_text = _render_actions(state, theme)
 
-    return render_frame(
-        title=title_text,
-        body=Group(body_text, actions_text),
-        variant=variant,
-        theme=theme,
-        align=True,
-    )
+    parts: list[tuple[str, str]] = []
+    parts.append(("class:header", title_text))
+    parts.append(("", "\n\n"))
+
+    if body:
+        parts.append(("class:accent", body))
+        parts.append(("", "\n\n"))
+
+    parts.extend(_render_actions(state))
+    return FormattedText(parts)
 
 
-def _render_actions(state: ModalState, theme: Theme) -> Text:
-    text = Text()
+def _render_actions(state: ModalState) -> list[tuple[str, str]]:
+    parts: list[tuple[str, str]] = []
     for idx, action in enumerate(state.actions):
         if idx:
-            text.append("  ")
-        is_selected = idx == state.index
-        style = (
-            theme.modal_action_selected_style
-            if is_selected
-            else theme.modal_action_style
-        )
-        text.append(action.label, style=style)
-    return text
+            parts.append(("", "  "))
+        style = "class:selected_row" if idx == state.index else "class:muted"
+        parts.append((style, f"[ {action.label} ]"))
+    return parts
 
 
 def _variant_tokens(variant: ModalVariant, theme: Theme) -> tuple[str, str]:
     if variant == "warn":
-        return theme.modal_warn_icon, theme.modal_warn_style
+        return theme.modal_warn_icon, "class:warning"
     if variant == "error":
-        return theme.modal_error_icon, theme.modal_error_style
+        return theme.modal_error_icon, "class:error"
     if variant == "success":
-        return theme.modal_success_icon, theme.modal_success_style
-    return theme.modal_info_icon, theme.modal_info_style
+        return theme.modal_success_icon, "class:current"
+    return theme.modal_info_icon, "class:accent"

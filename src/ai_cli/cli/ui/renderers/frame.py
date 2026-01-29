@@ -16,6 +16,7 @@ SELECT_FILTER_FOOTER = "↑/↓ move • Enter select • Esc cancel • type to
 MODEL_FILTER_FOOTER = "↑/↓ move • Enter select • Esc cancel • '/' filter • Ctrl+U clear"
 TEXT_FALLBACK_FOOTER = "Enter number or blank to cancel"
 VALUE_INPUT_FOOTER = "Enter value • Ctrl+C cancel"
+NUMERIC_OVERLAY_FOOTER = "Enter confirm • Esc cancel"
 
 
 def render_frame(
