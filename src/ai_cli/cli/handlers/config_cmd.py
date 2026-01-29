@@ -22,6 +22,7 @@ from ai_cli.core.exceptions import AICliError
 from ai_cli.infrastructure.model_catalog import ModelCatalog
 
 from ..ui.components.modal import confirm as modal_confirm
+from ..ui.components.inputs.numeric import numeric_input
 from ..ui.components.select import SelectOption, SelectState, select
 from ..ui.components.theme import DEFAULT_THEME
 from ..ui.console import console
@@ -31,7 +32,7 @@ from ..ui.model_select import interactive_model_select
 from ..ui.panels import config_hint_panel, config_settings_table
 from ..ui.prompts import confirm, prompt, secret_prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
-from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, VALUE_INPUT_FOOTER, render_frame
+from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, render_frame
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
 
@@ -262,7 +263,7 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    ai_limit = _prompt_int_value_with_frame(
+    ai_limit = _prompt_numeric_overlay(
         title="AI limits",
         label="ai_max_context_chars",
         min_value=1000,
@@ -272,7 +273,7 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    git_limit = _prompt_int_value_with_frame(
+    git_limit = _prompt_numeric_overlay(
         title="Git limits",
         label="git_max_diff_size",
         min_value=100,
@@ -465,10 +466,17 @@ def _select_active_provider(global_path: Path) -> str | None:
             if not ready:
                 return None
 
-        selected = prompt_provider_select(
-            current=read_ai_provider(global_path) or None,
-            providers=ready,
-        )
+        current_provider = read_ai_provider(global_path) or None
+        options = [
+            SelectOption(
+                value=provider.value,
+                label=provider.value,
+                description=None,
+                is_current=provider.value == (current_provider or ""),
+            )
+            for provider in ready
+        ]
+        selected = select(options, title="Select provider")
         if not selected:
             return None
         if _ensure_provider_key(selected, global_path):
@@ -497,20 +505,18 @@ def _select_model_name(provider: str) -> str | None:
         console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
         models = []
 
-    selected: list[str] = []
+    if not models:
+        console.print("[yellow]No models available.[/yellow]")
+        return None
 
-    def _on_select(model: str) -> None:
-        selected.append(model)
-
-    interactive_model_select(
-        models,
-        "",
-        _on_select,
-        current_provider=provider,
-        on_change_provider=None,
-    )
-
-    return selected[0] if selected else None
+    options = [
+        SelectOption(value=model, label=model, description=None)
+        for model in models
+    ]
+    selection = select(options, title="Select model")
+    if selection is None:
+        return None
+    return str(selection)
 
 
 def _current_int_value(path: Path, env_key: str, fallback: int) -> int:
@@ -788,10 +794,14 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
         console.print("[yellow]Selected setting is read-only.[/yellow]")
         return
 
-    new_value = _prompt_int_value_with_frame(
+    current_value = int(entry.value) if entry.value.isdigit() else None
+    new_value = numeric_input(
         title="Edit setting",
+        context=None,
         label=entry.key,
+        current_value=current_value,
         min_value=entry.min_value,
+        max_value=None,
     )
     if new_value is None:
         return
@@ -809,31 +819,7 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
     console.print(f"[bold green]✅ {entry.key} updated.[/bold green]")
 
 
-def _prompt_int_value(
-    *,
-    label: str,
-    min_value: int,
-    default: int | None = None,
-) -> int | None:
-    while True:
-        raw_value = prompt(
-            f"Enter new value for {label} (min {min_value})",
-            default=str(default) if default is not None else None,
-        ).strip()
-        if not raw_value:
-            console.print("[yellow]No changes made.[/yellow]")
-            return None
-        if not raw_value.isdigit():
-            console.print("[red]Please enter a valid integer.[/red]")
-            continue
-        value = int(raw_value)
-        if value < min_value:
-            console.print(f"[red]{label} must be at least {min_value}.[/red]")
-            continue
-        return value
-
-
-def _prompt_int_value_with_frame(
+def _prompt_numeric_overlay(
     *,
     title: str,
     label: str,
@@ -850,11 +836,12 @@ def _prompt_int_value_with_frame(
             body,
             Text(f"\nDefault: {default}", style="dim"),
         )
-    console.print(
-        render_frame(
-            title=title,
-            body=body,
-            footer=VALUE_INPUT_FOOTER,
-        )
+
+    return numeric_input(
+        title=title,
+        context=None,
+        label=f"Enter value for {label}",
+        current_value=default,
+        min_value=min_value,
+        max_value=None,
     )
-    return _prompt_int_value(label=label, min_value=min_value, default=default)
