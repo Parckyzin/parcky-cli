@@ -84,7 +84,6 @@ def interactive_model_select(
 
         if result.action == "model" and result.value:
             on_select(result.value)
-            console.print(f"[bold green]✅ Model set to:[/bold green] {result.value}")
             return
 
 
