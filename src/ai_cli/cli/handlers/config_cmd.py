@@ -21,15 +21,17 @@ from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import AICliError
 from ai_cli.infrastructure.model_catalog import ModelCatalog
 
+from ..ui.components.inputs.numeric import numeric_input
 from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.select import SelectOption, SelectState, select
+from ..ui.components.theme import DEFAULT_THEME
 from ..ui.console import console
-from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
-from ..ui.panels import config_hint_panel, config_settings_table
 from ..ui.prompts import confirm, prompt, secret_prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
+from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, render_frame
+from ..ui.renderers.plain_table import render_plain_table
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
 
@@ -214,32 +216,35 @@ def register(app: typer.Typer) -> None:
 
 def _show_config_status(global_path: Path) -> None:
     """Show current configuration status."""
-    console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
-
-    api_key = read_env_value(global_path, "AI_API_KEY") or read_env_value(
-        global_path, "GEMINI_API_KEY"
-    )
-    model_name = (
-        read_env_value(global_path, "AI_MODEL")
-        or read_env_value(global_path, "MODEL_NAME")
-        or "gemini-2.0-flash"
-    )
-
-    console.print("[bold]Current Settings:[/bold]")
-    if api_key:
-        masked = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
-        console.print(f"  API Key: [green]{masked}[/green]")
-    else:
-        console.print("  API Key: [red]Not set[/red]")
-
-    console.print(f"  Model:   [cyan]{model_name}[/cyan]")
-    console.print(f"  Source:  [dim]global ({global_path})[/dim]\n")
-
     rows = list_config_entries(global_path)
-    console.print(config_settings_table(rows))
-    console.print(
-        config_hint_panel("Tip: To edit editable values, run: parcky-cli config -e")
+    table_rows = [
+        [
+            entry.key,
+            entry.value,
+            "yes" if entry.editable else "no",
+            entry.source,
+        ]
+        for entry in rows
+    ]
+    body = render_plain_table(
+        ["Key", "Value", "Editable", "Source"],
+        table_rows,
     )
+
+    footer_lines = ["To edit editable values, run: config -e"]
+    if needs_init():
+        footer_lines.append("To initialize, run: config init")
+
+    output = "\n".join(
+        [
+            "parcky-cli / config",
+            "",
+            body,
+            "",
+            "\n".join(footer_lines),
+        ]
+    )
+    console.print(output)
 
 
 def _run_init_flow(global_path: Path) -> None:
@@ -260,7 +265,8 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    ai_limit = _prompt_int_value(
+    ai_limit = _prompt_numeric_overlay(
+        title="AI limits",
         label="ai_max_context_chars",
         min_value=1000,
         default=_current_int_value(global_path, "AI_MAX_CONTEXT_CHARS", 35000),
@@ -269,7 +275,8 @@ def _run_init_flow(global_path: Path) -> None:
         console.print("[yellow]Init cancelled.[/yellow]")
         return
 
-    git_limit = _prompt_int_value(
+    git_limit = _prompt_numeric_overlay(
+        title="Git limits",
         label="git_max_diff_size",
         min_value=100,
         default=_current_int_value(global_path, "GIT_MAX_DIFF_SIZE", 10000),
@@ -346,23 +353,31 @@ def _run_select_model(global_path: Path) -> None:
         on_change_provider=None,
     )
     if selected:
-        console.print(
-            f"[bold green]✅ Model set to:[/bold green] "
-            f"{selected[0]}"
-        )
+        console.print(f"[bold green]✅ Model set to:[/bold green] {selected[0]}")
 
 
 def _configure_provider_keys(global_path: Path) -> bool:
     providers = [p for p in AvailableProviders if p.needs_api_key()]
     while True:
         options: list[SelectOption[AvailableProviders | str]] = []
+        has_any_key = False
         for provider in providers:
             status = "set" if _has_provider_key(provider, global_path) else "missing"
+            if status == "set":
+                has_any_key = True
             options.append(
                 SelectOption(
                     value=provider,
                     label=provider,
                     description=f"API key {status}",
+                )
+            )
+        if has_any_key:
+            options.append(
+                SelectOption(
+                    value="Remove key",
+                    label="Remove key",
+                    description="Delete a saved API key",
                 )
             )
         options.append(
@@ -374,17 +389,57 @@ def _configure_provider_keys(global_path: Path) -> bool:
             return False
         if selection == "Continue":
             return True
-        if isinstance(selection, AvailableProviders):
-            _set_provider_key(selection, global_path)
+        if selection == "Remove key":
+            if not _remove_provider_key_flow(global_path):
+                return False
+            continue
+        if isinstance(selection, AvailableProviders) and not _set_provider_key(
+            selection, global_path
+        ):
+            return False
 
 
-def _set_provider_key(provider: AvailableProviders, global_path: Path) -> None:
+def _set_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
     new_key = secret_prompt(f"Enter {provider.value} API key").strip()
     if not new_key:
-        console.print("[yellow]No API key provided.[/yellow]")
-        return
+        console.print("[yellow]Cancelled.[/yellow]")
+        return False
     set_provider_api_key(global_path, provider, new_key)
     console.print(f"[bold green]✅ {provider.value} key saved.[/bold green]")
+    return True
+
+
+def _remove_provider_key_flow(global_path: Path) -> bool:
+    providers = [
+        provider
+        for provider in AvailableProviders
+        if provider.needs_api_key() and _has_provider_key(provider, global_path)
+    ]
+    if not providers:
+        console.print("[yellow]No API keys to remove.[/yellow]")
+        return True
+    options: list[SelectOption[AvailableProviders | str]] = [
+        SelectOption(
+            value=provider,
+            label=provider,
+            description="API key set",
+        )
+        for provider in providers
+    ]
+    options.append(SelectOption(value="Back", label="Back", description="Return"))
+    selection = _select_option(options, "Remove API key")
+    if selection is None:
+        return False
+    if selection == "Back":
+        return True
+    if isinstance(selection, AvailableProviders):
+        body = f"Remove saved API key for {selection.value}?"
+        if not modal_confirm(title="Remove API key?", body=body, variant="warn"):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return False
+        set_env_value(global_path, selection.env_api_key_name(), "")
+        console.print(f"[bold green]✅ {selection.value} key removed.[/bold green]")
+    return True
 
 
 def _select_active_provider(global_path: Path) -> str | None:
@@ -392,7 +447,14 @@ def _select_active_provider(global_path: Path) -> str | None:
         ready = _ready_providers(global_path)
         if not ready:
             console.print(
-                "[yellow]No providers are ready. Add an API key to continue.[/yellow]"
+                render_frame(
+                    title="Select provider",
+                    body=Text(
+                        "No providers are ready. Add an API key to continue.",
+                        style=DEFAULT_THEME.frame_warn_style,
+                    ),
+                    footer="Redirecting to Manage API keys...",
+                )
             )
             if not _configure_provider_keys(global_path):
                 return None
@@ -400,10 +462,17 @@ def _select_active_provider(global_path: Path) -> str | None:
             if not ready:
                 return None
 
-        selected = prompt_provider_select(
-            current=read_ai_provider(global_path) or None,
-            providers=ready,
-        )
+        current_provider = read_ai_provider(global_path) or None
+        options = [
+            SelectOption(
+                value=provider.value,
+                label=provider.value,
+                description=None,
+                is_current=provider.value == (current_provider or ""),
+            )
+            for provider in ready
+        ]
+        selected = select(options, title="Select provider")
         if not selected:
             return None
         if _ensure_provider_key(selected, global_path):
@@ -432,20 +501,17 @@ def _select_model_name(provider: str) -> str | None:
         console.print(f"[yellow]Warning:[/yellow] {exc.user_message}")
         models = []
 
-    selected: list[str] = []
+    if not models:
+        console.print("[yellow]No models available.[/yellow]")
+        return None
 
-    def _on_select(model: str) -> None:
-        selected.append(model)
-
-    interactive_model_select(
-        models,
-        "",
-        _on_select,
-        current_provider=provider,
-        on_change_provider=None,
-    )
-
-    return selected[0] if selected else None
+    options = [
+        SelectOption(value=model, label=model, description=None) for model in models
+    ]
+    selection = select(options, title="Select model")
+    if selection is None:
+        return None
+    return str(selection)
 
 
 def _current_int_value(path: Path, env_key: str, fallback: int) -> int:
@@ -471,13 +537,19 @@ def _select_option(
         )
 
     state = SelectState.from_options(options)
-    console.print(render_table(state, title=title, show_index=True))
+    console.print(
+        render_frame(
+            title=title,
+            body=render_table(state, title=None, show_index=True),
+            footer=TEXT_FALLBACK_FOOTER,
+        )
+    )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
     choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
+    if 1 <= choice <= len(options):
+        return options[choice - 1].value
     return None
 
 
@@ -573,7 +645,13 @@ def _select_edit_category() -> str | None:
         )
 
     state = SelectState.from_options(options)
-    console.print(render_table(state, title="Edit configuration", show_index=True))
+    console.print(
+        render_frame(
+            title="Edit configuration",
+            body=render_table(state, title=None, show_index=True),
+            footer=TEXT_FALLBACK_FOOTER,
+        )
+    )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
@@ -619,17 +697,8 @@ def _select_edit_entry(
     options.append(
         SelectOption(value="Back", label="Back", description="Return to categories")
     )
-    state = SelectState.from_options(options)
-
-    def _render_table(state_: SelectState[ConfigEntry | str]):
-        return render_table(
-            state_,
-            title=title,
-            columns=_edit_columns(),
-        )
-
     try:
-        return select_with_prompt_toolkit(state, render=_render_table)
+        return select(options, title=title)
     except ImportError:
         console.print(
             "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
@@ -639,15 +708,30 @@ def _select_edit_entry(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
         )
 
+    headers = ["Key", "Value", "Description", "Source"]
+    rows = [
+        [entry.key, entry.value, entry.description, entry.source]
+        if isinstance(entry, ConfigEntry)
+        else ["Back", "", "", ""]
+        for entry in [opt.value for opt in options]
+    ]
     console.print(
-        render_table(state, title=title, show_index=True, columns=_edit_columns())
+        "\n".join(
+            [
+                title,
+                "",
+                render_plain_table(headers, rows),
+                "",
+                TEXT_FALLBACK_FOOTER,
+            ]
+        )
     )
     user_input = prompt("Enter number or blank to cancel").strip()
     if not user_input or not user_input.isdigit():
         return None
     choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
+    if 1 <= choice <= len(options):
+        return options[choice - 1].value
     return None
 
 
@@ -700,9 +784,14 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
         console.print("[yellow]Selected setting is read-only.[/yellow]")
         return
 
-    new_value = _prompt_int_value(
+    current_value = int(entry.value) if entry.value.isdigit() else None
+    new_value = numeric_input(
+        title="Edit setting",
+        context=None,
         label=entry.key,
+        current_value=current_value,
         min_value=entry.min_value,
+        max_value=None,
     )
     if new_value is None:
         return
@@ -720,25 +809,29 @@ def _edit_entry(entry: ConfigEntry, global_path: Path) -> None:
     console.print(f"[bold green]✅ {entry.key} updated.[/bold green]")
 
 
-def _prompt_int_value(
+def _prompt_numeric_overlay(
     *,
+    title: str,
     label: str,
     min_value: int,
     default: int | None = None,
 ) -> int | None:
-    while True:
-        raw_value = prompt(
-            f"Enter new value for {label} (min {min_value})",
-            default=str(default) if default is not None else None,
-        ).strip()
-        if not raw_value:
-            console.print("[yellow]No changes made.[/yellow]")
-            return None
-        if not raw_value.isdigit():
-            console.print("[red]Please enter a valid integer.[/red]")
-            continue
-        value = int(raw_value)
-        if value < min_value:
-            console.print(f"[red]{label} must be at least {min_value}.[/red]")
-            continue
-        return value
+    body = Text.assemble(
+        ("Enter a value for ", "dim"),
+        (label, "bold"),
+        (f" (min {min_value})", "dim"),
+    )
+    if default is not None:
+        body = Text.assemble(
+            body,
+            Text(f"\nDefault: {default}", style="dim"),
+        )
+
+    return numeric_input(
+        title=title,
+        context=None,
+        label=f"Enter value for {label}",
+        current_value=default,
+        min_value=min_value,
+        max_value=None,
+    )

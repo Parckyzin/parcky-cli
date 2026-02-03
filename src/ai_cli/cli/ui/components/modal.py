@@ -12,6 +12,7 @@ from ai_cli.cli.ui.renderers.modal import (
     ModalVariant,
     render_modal,
 )
+from ai_cli.cli.ui.renderers.shell import render_shell
 
 ModalKey = Literal["enter", "esc", "q", "left", "right", "c-c"]
 
@@ -81,8 +82,18 @@ def modal(
             event.app.exit(result=ModalResult(None, True))
 
     result = run_prompt_toolkit(
-        render=lambda: render_modal(
-            state, title=title, body=body, variant=variant, theme=theme
+        render=lambda: render_shell(
+            title=title,
+            context=None,
+            body=render_modal(
+                state,
+                title=title,
+                body=body,
+                variant=variant,
+                theme=theme,
+            ),
+            footer="← → move • Enter select • Esc cancel",
+            theme=theme,
         ),
         bind_keys=_bind_keys,
     )

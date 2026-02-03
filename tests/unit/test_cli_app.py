@@ -41,11 +41,13 @@ def test_config_help_includes_edit_flag():
 
 
 def _strip_ansi(value: str) -> str:
-    cleaned = value.replace("\x1b", "")
+    cleaned = value
     while True:
-        start = cleaned.find("[")
+        start = cleaned.find("\x1b[")
+        if start == -1:
+            break
         end = cleaned.find("m", start)
-        if start == -1 or end == -1:
+        if end == -1:
             break
         cleaned = cleaned[:start] + cleaned[end + 1 :]
     return cleaned

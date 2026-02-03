@@ -241,6 +241,7 @@ def list_config_entries(global_path: Path) -> list[ConfigEntry]:
     git_values = settings_dict.get("git", {})
     ai_config = AIConfig.model_construct(**ai_values)
     git_config = GitConfig.model_construct(**git_values)
+    provider = ai_config.effective_provider or "not set"
 
     return [
         ConfigEntry(
@@ -283,6 +284,18 @@ def list_config_entries(global_path: Path) -> list[ConfigEntry]:
                 ["AI_MODEL", "MODEL_NAME"], global_path
             ),
             description="AI model name (read-only)",
+            category=None,
+            env_key=None,
+            min_value=None,
+        ),
+        ConfigEntry(
+            key="provider",
+            value=provider,
+            editable=False,
+            source=loader.resolve_setting_source(
+                ["AI_PROVIDER", "AI_HOST"], global_path
+            ),
+            description="AI provider (read-only)",
             category=None,
             env_key=None,
             min_value=None,
