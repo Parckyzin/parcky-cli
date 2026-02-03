@@ -21,18 +21,17 @@ from ai_cli.core.common.enums import AvailableProviders
 from ai_cli.core.exceptions import AICliError
 from ai_cli.infrastructure.model_catalog import ModelCatalog
 
-from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.inputs.numeric import numeric_input
+from ..ui.components.modal import confirm as modal_confirm
 from ..ui.components.select import SelectOption, SelectState, select
 from ..ui.components.theme import DEFAULT_THEME
 from ..ui.console import console
-from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
-from ..ui.renderers.plain_table import render_plain_table
 from ..ui.prompts import confirm, prompt, secret_prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, render_frame
+from ..ui.renderers.plain_table import render_plain_table
 from ..ui.renderers.select_table import TableColumnSpec, render_table, strip_ansi
 
 
@@ -354,10 +353,7 @@ def _run_select_model(global_path: Path) -> None:
         on_change_provider=None,
     )
     if selected:
-        console.print(
-            f"[bold green]✅ Model set to:[/bold green] "
-            f"{selected[0]}"
-        )
+        console.print(f"[bold green]✅ Model set to:[/bold green] {selected[0]}")
 
 
 def _configure_provider_keys(global_path: Path) -> bool:
@@ -397,9 +393,10 @@ def _configure_provider_keys(global_path: Path) -> bool:
             if not _remove_provider_key_flow(global_path):
                 return False
             continue
-        if isinstance(selection, AvailableProviders):
-            if not _set_provider_key(selection, global_path):
-                return False
+        if isinstance(selection, AvailableProviders) and not _set_provider_key(
+            selection, global_path
+        ):
+            return False
 
 
 def _set_provider_key(provider: AvailableProviders, global_path: Path) -> bool:
@@ -429,9 +426,7 @@ def _remove_provider_key_flow(global_path: Path) -> bool:
         )
         for provider in providers
     ]
-    options.append(
-        SelectOption(value="Back", label="Back", description="Return")
-    )
+    options.append(SelectOption(value="Back", label="Back", description="Return"))
     selection = _select_option(options, "Remove API key")
     if selection is None:
         return False
@@ -443,9 +438,7 @@ def _remove_provider_key_flow(global_path: Path) -> bool:
             console.print("[yellow]Cancelled.[/yellow]")
             return False
         set_env_value(global_path, selection.env_api_key_name(), "")
-        console.print(
-            f"[bold green]✅ {selection.value} key removed.[/bold green]"
-        )
+        console.print(f"[bold green]✅ {selection.value} key removed.[/bold green]")
     return True
 
 
@@ -513,8 +506,7 @@ def _select_model_name(provider: str) -> str | None:
         return None
 
     options = [
-        SelectOption(value=model, label=model, description=None)
-        for model in models
+        SelectOption(value=model, label=model, description=None) for model in models
     ]
     selection = select(options, title="Select model")
     if selection is None:
@@ -738,8 +730,8 @@ def _select_edit_entry(
     if not user_input or not user_input.isdigit():
         return None
     choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
+    if 1 <= choice <= len(options):
+        return options[choice - 1].value
     return None
 
 

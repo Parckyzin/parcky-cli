@@ -24,14 +24,14 @@ class ModalResult:
 
 
 def confirm(
-        *,
-        title: str,
-        body: str,
-        confirm_label: str = "Confirm",
-        cancel_label: str = "Cancel",
-        variant: ModalVariant = "info",
-        theme: Theme = DEFAULT_THEME,
-        key_source: Iterable[ModalKey] | None = None,
+    *,
+    title: str,
+    body: str,
+    confirm_label: str = "Confirm",
+    cancel_label: str = "Cancel",
+    variant: ModalVariant = "info",
+    theme: Theme = DEFAULT_THEME,
+    key_source: Iterable[ModalKey] | None = None,
 ) -> bool:
     result = modal(
         title=title,
@@ -48,13 +48,13 @@ def confirm(
 
 
 def modal(
-        *,
-        title: str,
-        body: str,
-        actions: list[ModalAction],
-        variant: ModalVariant = "info",
-        theme: Theme = DEFAULT_THEME,
-        key_source: Iterable[ModalKey] | None = None,
+    *,
+    title: str,
+    body: str,
+    actions: list[ModalAction],
+    variant: ModalVariant = "info",
+    theme: Theme = DEFAULT_THEME,
+    key_source: Iterable[ModalKey] | None = None,
 ) -> ModalResult:
     state = ModalState(actions=actions, index=0)
     if key_source is not None:
@@ -103,8 +103,8 @@ def modal(
 
 
 def _run_from_key_source(
-        state: ModalState,
-        key_source: Iterable[ModalKey],
+    state: ModalState,
+    key_source: Iterable[ModalKey],
 ) -> ModalResult:
     for key in key_source:
         result = handle_key(state, key)

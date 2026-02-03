@@ -327,9 +327,7 @@ def _render_provider_frame(
         body.append(Text(f"Current: {current}", style=theme.muted_style))
     if filter_text:
         body.append(Text(f"Filter: {filter_text}", style=theme.muted_style))
-    body.append(
-        render_table(state, show_index=show_index, columns=_provider_columns())
-    )
+    body.append(render_table(state, show_index=show_index, columns=_provider_columns()))
     return render_frame(
         title=title,
         body=Group(*body),

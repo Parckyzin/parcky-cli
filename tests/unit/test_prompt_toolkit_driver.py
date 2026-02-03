@@ -46,7 +46,7 @@ def _install_prompt_toolkit_stubs(monkeypatch) -> None:
             return FakeStyle()
 
     class FakeApplication:
-        def __init__(self, layout, key_bindings, style, full_screen):
+        def __init__(self, layout, _key_bindings, _style, _full_screen):
             self.layout = layout
 
         def run(self):

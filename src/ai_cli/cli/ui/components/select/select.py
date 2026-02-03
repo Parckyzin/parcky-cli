@@ -54,7 +54,10 @@ def _render_select_shell(
         )
         rows.append(
             [
-                (row_style["marker"], theme.selected_marker if state.index == idx else " "),
+                (
+                    row_style["marker"],
+                    theme.selected_marker if state.index == idx else " ",
+                ),
                 (cell_style, option.label),
                 (cell_style, option.description or ""),
                 (status_style, status_text),

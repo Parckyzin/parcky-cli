@@ -208,9 +208,7 @@ def _apply_key(
             return None, False
         return result.value if result else None, True
     if key.isprintable() and len(key) == 1:
-        state.buffer = (
-            state.buffer[: state.cursor] + key + state.buffer[state.cursor :]
-        )
+        state.buffer = state.buffer[: state.cursor] + key + state.buffer[state.cursor :]
         state.cursor += 1
         state.error = None
     return None, False

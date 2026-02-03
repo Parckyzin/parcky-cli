@@ -261,7 +261,7 @@ def test_init_filters_ready_providers(tmp_path, monkeypatch) -> None:
 
     captured: dict[str, list[str]] = {}
 
-    def _capture_select(options, title=None, **_kwargs):
+    def _capture_select(options, _title=None, **_kwargs):
         captured["providers"] = [opt.value for opt in options]
         return None
 
@@ -384,7 +384,7 @@ def test_model_catalog_used_for_init(monkeypatch) -> None:
     def _fake_list_models(_self, _provider, _api_key):
         return ["m1", "m2"]
 
-    def _fake_select(options, title=None, **_kwargs):
+    def _fake_select(options, _title=None, **_kwargs):
         captured.extend([opt.value for opt in options])
         return "m2"
 

@@ -10,9 +10,7 @@ R = TypeVar("R")
 if TYPE_CHECKING:
     from ai_cli.cli.ui.components.select.state import SelectState
 
-RenderFn = Callable[
-    ["SelectState[T]"], str | list[tuple[str, str]]
-]
+RenderFn = Callable[["SelectState[T]"], str | list[tuple[str, str]]]
 PlainRenderFn = Callable[[], str | list[tuple[str, str]]]
 OverlayRenderFn = Callable[[], str | list[tuple[str, str]] | None]
 
@@ -111,7 +109,7 @@ def run_prompt_toolkit_screen(
     return app.run()
 
 
-def _to_formatted_text(value, to_formatted_text) -> FormattedText:
+def _to_formatted_text(value, to_formatted_text):
     try:
         return to_formatted_text(value)
     except Exception:

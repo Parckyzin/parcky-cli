@@ -384,9 +384,7 @@ def _render_model_frame(
                 style=theme.frame_warn_style,
             )
         )
-    body.append(
-        render_table(state, show_index=show_index, columns=_model_columns())
-    )
+    body.append(render_table(state, show_index=show_index, columns=_model_columns()))
     return render_frame(
         title=title,
         body=Group(*body),

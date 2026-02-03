@@ -23,12 +23,12 @@ class ModalState:
 
 
 def render_modal(
-        state: ModalState,
-        *,
-        title: str,
-        body: str,
-        variant: ModalVariant = "info",
-        theme: Theme = DEFAULT_THEME,
+    state: ModalState,
+    *,
+    title: str,
+    body: str,
+    variant: ModalVariant = "info",
+    theme: Theme = DEFAULT_THEME,
 ) -> FormattedText:
     icon, _variant_class = _variant_tokens(variant, theme)
     title_text = f"{icon} {title}".strip()

@@ -4,6 +4,7 @@ from collections.abc import Iterable, Sequence
 
 from prompt_toolkit.formatted_text import FormattedText
 
+
 def render_text_table(
     *,
     headers: Sequence[str],
@@ -30,7 +31,7 @@ def _compute_widths(
 ) -> list[int]:
     widths = [len(header) for header in headers]
     for row in rows:
-        for idx, (style, text) in enumerate(row):
+        for idx, (_style, text) in enumerate(row):
             if idx >= len(widths):
                 widths.append(len(text))
             else:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from prompt_toolkit.formatted_text import FormattedText, to_formatted_text
 
@@ -15,6 +15,7 @@ def render_shell(
     footer: str | None,
     theme: Theme = DEFAULT_THEME,
 ) -> FormattedText:
+    _ = theme
     parts: list[tuple[str, str]] = []
     parts.append(("class:header", title))
     if context:
