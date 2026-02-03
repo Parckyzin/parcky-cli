@@ -29,7 +29,7 @@ from ..ui.console import console
 from ..ui.drivers.prompt_toolkit import select_with_prompt_toolkit
 from ..ui.errors import exit_with_error, exit_with_unexpected_error
 from ..ui.model_select import interactive_model_select
-from ..ui.panels import config_hint_panel, config_settings_table
+from ..ui.renderers.plain_table import render_plain_table
 from ..ui.prompts import confirm, prompt, secret_prompt
 from ..ui.provider_select import select_provider as prompt_provider_select
 from ..ui.renderers.frame import TEXT_FALLBACK_FOOTER, render_frame
@@ -217,32 +217,35 @@ def register(app: typer.Typer) -> None:
 
 def _show_config_status(global_path: Path) -> None:
     """Show current configuration status."""
-    console.print("[bold]🔧 AI CLI Configuration[/bold]\n")
-
-    api_key = read_env_value(global_path, "AI_API_KEY") or read_env_value(
-        global_path, "GEMINI_API_KEY"
-    )
-    model_name = (
-        read_env_value(global_path, "AI_MODEL")
-        or read_env_value(global_path, "MODEL_NAME")
-        or "gemini-2.0-flash"
-    )
-
-    console.print("[bold]Current Settings:[/bold]")
-    if api_key:
-        masked = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
-        console.print(f"  API Key: [green]{masked}[/green]")
-    else:
-        console.print("  API Key: [red]Not set[/red]")
-
-    console.print(f"  Model:   [cyan]{model_name}[/cyan]")
-    console.print(f"  Source:  [dim]global ({global_path})[/dim]\n")
-
     rows = list_config_entries(global_path)
-    console.print(config_settings_table(rows))
-    console.print(
-        config_hint_panel("Tip: To edit editable values, run: parcky-cli config -e")
+    table_rows = [
+        [
+            entry.key,
+            entry.value,
+            "yes" if entry.editable else "no",
+            entry.source,
+        ]
+        for entry in rows
+    ]
+    body = render_plain_table(
+        ["Key", "Value", "Editable", "Source"],
+        table_rows,
     )
+
+    footer_lines = ["To edit editable values, run: config -e"]
+    if needs_init():
+        footer_lines.append("To initialize, run: config init")
+
+    output = "\n".join(
+        [
+            "parcky-cli / config",
+            "",
+            body,
+            "",
+            "\n".join(footer_lines),
+        ]
+    )
+    console.print(output)
 
 
 def _run_init_flow(global_path: Path) -> None:
@@ -553,8 +556,8 @@ def _select_option(
     if not user_input or not user_input.isdigit():
         return None
     choice = int(user_input)
-    if 1 <= choice <= len(state.options):
-        return state.options[choice - 1].value
+    if 1 <= choice <= len(options):
+        return options[choice - 1].value
     return None
 
 
@@ -702,22 +705,8 @@ def _select_edit_entry(
     options.append(
         SelectOption(value="Back", label="Back", description="Return to categories")
     )
-    state = SelectState.from_options(options)
-
-    def _render_table(state_: SelectState[ConfigEntry | str]):
-        return render_frame(
-            title=title,
-            body=render_table(
-                state_,
-                title=None,
-                columns=_edit_columns(),
-            ),
-            footer="↑/↓ move • Enter select • Esc cancel",
-            align=True,
-        )
-
     try:
-        return select_with_prompt_toolkit(state, render=_render_table)
+        return select(options, title=title)
     except ImportError:
         console.print(
             "[yellow]prompt_toolkit not available. Using text fallback.[/yellow]"
@@ -727,13 +716,22 @@ def _select_edit_entry(
             f"[yellow]Interactive UI failed ({exc}). Using text fallback.[/yellow]"
         )
 
+    headers = ["Key", "Value", "Description", "Source"]
+    rows = [
+        [entry.key, entry.value, entry.description, entry.source]
+        if isinstance(entry, ConfigEntry)
+        else ["Back", "", "", ""]
+        for entry in [opt.value for opt in options]
+    ]
     console.print(
-        render_frame(
-            title=title,
-            body=render_table(
-                state, title=None, show_index=True, columns=_edit_columns()
-            ),
-            footer=TEXT_FALLBACK_FOOTER,
+        "\n".join(
+            [
+                title,
+                "",
+                render_plain_table(headers, rows),
+                "",
+                TEXT_FALLBACK_FOOTER,
+            ]
         )
     )
     user_input = prompt("Enter number or blank to cancel").strip()
