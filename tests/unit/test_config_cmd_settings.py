@@ -37,7 +37,7 @@ def test_config_list_shows_values_and_sources(tmp_path, monkeypatch) -> None:
     assert "git_max_diff_size" in result.output
     assert "200" in result.output
     assert "global" in result.output
-    assert "Tip: To edit editable values, run: parcky-cli config -e" in result.output
+    assert "To edit editable values, run: config -e" in result.output
 
 
 def test_config_read_only_does_not_touch_prompt(tmp_path, monkeypatch) -> None:
@@ -56,7 +56,7 @@ def test_config_read_only_does_not_touch_prompt(tmp_path, monkeypatch) -> None:
     result = runner.invoke(cli_main.app, ["config"])
 
     assert result.exit_code == 0
-    assert "Tip: To edit editable values, run: parcky-cli config -e" in result.output
+    assert "To edit editable values, run: config -e" in result.output
 
 
 def test_config_edit_flow_basic_exit(tmp_path, monkeypatch) -> None:
@@ -223,6 +223,32 @@ def test_config_init_persists_values(tmp_path, monkeypatch) -> None:
     assert read_env_value(global_path, "AI_MODEL") == "gpt-4o"
     assert read_env_value(global_path, "AI_MAX_CONTEXT_CHARS") == "12000"
     assert read_env_value(global_path, "GIT_MAX_DIFF_SIZE") == "12000"
+
+
+def test_config_init_cancel_on_numeric_input(tmp_path, monkeypatch) -> None:
+    global_path = tmp_path / "global.env"
+    global_path.write_text("")
+
+    _patch_paths(monkeypatch, global_path)
+    _patch_needs_init(monkeypatch, False)
+
+    def _configure(path):
+        config_cmd.set_provider_api_key(
+            path, config_cmd.AvailableProviders.OPENAI, "key"
+        )
+        return True
+
+    monkeypatch.setattr(config_cmd, "_configure_provider_keys", _configure)
+    monkeypatch.setattr(config_cmd, "_select_active_provider", lambda _path: "openai")
+    monkeypatch.setattr(config_cmd, "_select_model_name", lambda _provider: "gpt-4o")
+    monkeypatch.setattr(config_cmd, "_prompt_numeric_overlay", lambda **_k: None)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_main.app, ["config", "init"])
+
+    assert result.exit_code == 0
+    assert read_env_value(global_path, "AI_PROVIDER") == ""
+    assert read_env_value(global_path, "AI_MODEL") == ""
 
 
 def test_init_filters_ready_providers(tmp_path, monkeypatch) -> None:
