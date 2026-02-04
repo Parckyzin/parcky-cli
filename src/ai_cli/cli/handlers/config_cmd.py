@@ -231,7 +231,11 @@ def _show_config_status(global_path: Path) -> None:
         table_rows,
     )
 
-    footer_lines = ["To edit editable values, run: config -e"]
+    # TODO  unify the model/provider select to editable values
+    footer_lines = [
+        "To edit editable values, run: config -e",
+        "To select model, run: config --select-model or -s",
+    ]
     if needs_init():
         footer_lines.append("To initialize, run: config init")
 

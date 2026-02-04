@@ -2,9 +2,12 @@
 Unit tests for SmartCommitAllService.
 """
 
+import subprocess
 from unittest.mock import Mock, patch
 
+from ai_cli.config.settings import GitConfig
 from ai_cli.core.models import FileChange, GitDiff
+from ai_cli.infrastructure.git_repository import GitRepository
 from ai_cli.services.smart_commit_all_service import SmartCommitAllService
 
 
@@ -94,3 +97,37 @@ def test_generate_commit_message_uses_pipeline():
         service.generate_commit_message_for_group(group)
 
     build_context.assert_called_once_with(group.diff, group.file_paths)
+
+
+def test_plan_includes_untracked_module_files_individually(monkeypatch, tmp_path):
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    subprocess.run(
+        ["git", "init"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    module_dir = repo_dir / "new_module"
+    module_dir.mkdir()
+    (module_dir / "__init__.py").write_text("", encoding="utf-8")
+    (module_dir / "a.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    monkeypatch.setenv("AI_CLI_WORK_DIR", str(repo_dir))
+    git_repo = GitRepository(GitConfig(max_diff_size=100000, default_branch="main"))
+    ai_service = Mock()
+    ai_service.generate_text.return_value = (
+        "GROUP: new_module/__init__.py, new_module/a.py"
+    )
+    ai_service.generate_commit_message.return_value = "feat: add new module"
+
+    service = SmartCommitAllService(git_repo=git_repo, ai_service=ai_service)
+
+    plan = service.plan_smart_commit_all()
+
+    assert plan.total_files == 2
+    all_paths = {path for group in plan.groups for path in group.file_paths}
+    assert "new_module/__init__.py" in all_paths
+    assert "new_module/a.py" in all_paths
+    assert "new_module" not in all_paths

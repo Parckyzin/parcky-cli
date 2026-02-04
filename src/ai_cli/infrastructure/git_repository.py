@@ -53,6 +53,66 @@ class GitRepository(GitRepositoryInterface):
                 ),
             ) from e
 
+    def _run_command_allow_exit_codes(
+        self, command: list[str], allowed_exit_codes: set[int]
+    ) -> str:
+        """Run a git command allowing a custom set of non-zero exit codes."""
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=self.work_dir,
+        )
+        if result.returncode in allowed_exit_codes:
+            return result.stdout.strip()
+
+        cmd_display = " ".join(command)
+        raise GitError(
+            f"Git command failed: {cmd_display}\nError: {result.stderr}",
+            user_message=(
+                "Git command failed. Make sure git is installed and you are "
+                "inside a git repository."
+            ),
+        )
+
+    def _get_untracked_files(self) -> list[str]:
+        """Return untracked file paths (never directories)."""
+        output = self._run_command(
+            ["git", "ls-files", "--others", "--exclude-standard"]
+        )
+        if not output:
+            return []
+
+        paths: list[str] = []
+        for raw_path in output.split("\n"):
+            path = raw_path.strip()
+            if not path:
+                continue
+            abs_path = os.path.join(self.work_dir, path)
+            if os.path.isfile(abs_path):
+                paths.append(path)
+        return sorted(set(paths))
+
+    def _expand_paths_to_files(self, paths: list[str]) -> list[str]:
+        """Expand directory inputs to file paths for deterministic diffing."""
+        expanded: list[str] = []
+        for raw_path in paths:
+            path = raw_path.strip()
+            if not path:
+                continue
+            abs_path = os.path.join(self.work_dir, path)
+            if os.path.isdir(abs_path):
+                for root, _dirs, files in os.walk(abs_path):
+                    for filename in files:
+                        file_abs_path = os.path.join(root, filename)
+                        file_rel_path = os.path.relpath(file_abs_path, self.work_dir)
+                        expanded.append(file_rel_path)
+            else:
+                expanded.append(path)
+
+        return sorted(set(expanded))
+
     def get_staged_diff(self) -> GitDiff:
         """Get the diff of staged changes."""
         try:
@@ -156,27 +216,37 @@ class GitRepository(GitRepositoryInterface):
         """Get all changed files (staged and unstaged, including untracked)."""
         try:
             status_output = self._run_command(["git", "status", "--porcelain"])
-            if not status_output:
-                return []
+            changes: list[FileChange] = []
+            tracked_paths: set[str] = set()
 
-            changes = []
-            for line in status_output.split("\n"):
-                if not line.strip():
-                    continue
-                status_regex = r"^([ MADRCU\?]{1,2})\s+(.+)$"
-                match = re.match(status_regex, line)
-                if not match:
-                    continue
-                status = match.group(1).strip()
-                file_path = match.group(2).strip()
+            if status_output:
+                for line in status_output.split("\n"):
+                    if not line.strip():
+                        continue
+                    status_regex = r"^([ MADRCU\?]{1,2})\s+(.+)$"
+                    match = re.match(status_regex, line)
+                    if not match:
+                        continue
+                    status = match.group(1).strip()
+                    file_path = match.group(2).strip()
 
-                if " -> " in file_path:
-                    file_path = file_path.split(" -> ")[1]
+                    if status == "??":
+                        # Untracked files are sourced from ls-files to avoid
+                        # directory-like or ambiguous entries.
+                        continue
 
-                if status:
-                    changes.append(FileChange(path=file_path, status=status))
+                    if " -> " in file_path:
+                        file_path = file_path.split(" -> ")[1]
 
-            return changes
+                    if status and file_path:
+                        changes.append(FileChange(path=file_path, status=status))
+                        tracked_paths.add(file_path)
+
+            for path in self._get_untracked_files():
+                if path not in tracked_paths:
+                    changes.append(FileChange(path=path, status="??"))
+
+            return sorted(changes, key=lambda change: change.path)
         except subprocess.CalledProcessError:
             raise GitError(
                 "Failed to get changed files",
@@ -205,26 +275,39 @@ class GitRepository(GitRepositoryInterface):
         if not file_paths:
             return GitDiff(content="", is_truncated=False)
         try:
-            diff_output = self._run_command(["git", "diff", "HEAD", "--", *file_paths])
+            normalized_paths = self._expand_paths_to_files(file_paths)
+            if not normalized_paths:
+                return GitDiff(content="", is_truncated=False)
 
-            if not diff_output:
-                diff_output = self._run_command(
-                    ["git", "diff", "--cached", "--", *file_paths]
+            untracked_files = set(self._get_untracked_files())
+            tracked_paths = [p for p in normalized_paths if p not in untracked_files]
+            untracked_paths = [p for p in normalized_paths if p in untracked_files]
+
+            diff_parts: list[str] = []
+
+            if tracked_paths:
+                tracked_diff = self._run_command(
+                    ["git", "diff", "HEAD", "--", *tracked_paths]
                 )
+                if not tracked_diff:
+                    tracked_diff = self._run_command(
+                        ["git", "diff", "--cached", "--", *tracked_paths]
+                    )
+                if tracked_diff:
+                    diff_parts.append(tracked_diff)
 
-            if not diff_output:
-                for path in file_paths:
-                    try:
-                        abs_path = os.path.join(self.work_dir, path)
-                        content = ""
-                        with open(abs_path, encoding="utf-8", errors="replace") as f:
-                            content = f.read()
-                        if content:
-                            diff_output += f"\n+++ new file: {path}\n{content}\n"
-                    except subprocess.CalledProcessError:
-                        pass
-                    except OSError:
-                        pass
+            for path in untracked_paths:
+                abs_path = os.path.join(self.work_dir, path)
+                if not os.path.isfile(abs_path):
+                    continue
+                untracked_diff = self._run_command_allow_exit_codes(
+                    ["git", "diff", "--no-index", "--", "/dev/null", path],
+                    allowed_exit_codes={0, 1},
+                )
+                if untracked_diff:
+                    diff_parts.append(untracked_diff)
+
+            diff_output = "\n\n".join(part for part in diff_parts if part)
 
             is_truncated = False
             truncation_notes: list[str] = []
